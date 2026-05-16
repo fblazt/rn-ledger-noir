@@ -1,8 +1,45 @@
-import { ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import {
+  initializeDatabase,
+  listDefaultCategories,
+  seedDefaultCategories,
+} from '@/src/db';
+import { verifyBasicLocalWrites } from '@/src/db/smoke';
+import { createLogger } from '@/src/lib/logger';
+
+const logger = createLogger('sqlite-smoke');
 const settingsRows = ['Manual sync', 'Manage categories', 'Clear local cache', 'Logout'];
+const DEV_SMOKE_USER_ID = '00000000-0000-4000-8000-000000000003';
 
 export default function SettingsScreen() {
+  const [smokeStatus, setSmokeStatus] = useState<'idle' | 'running' | 'passed' | 'failed'>('idle');
+
+  async function runLocalSmokeTest() {
+    setSmokeStatus('running');
+
+    try {
+      const db = await initializeDatabase();
+
+      await seedDefaultCategories(db, DEV_SMOKE_USER_ID);
+      await seedDefaultCategories(db, DEV_SMOKE_USER_ID);
+
+      const categories = await listDefaultCategories(db, DEV_SMOKE_USER_ID);
+      const writesPassed = await verifyBasicLocalWrites(db, DEV_SMOKE_USER_ID);
+
+      if (!writesPassed) {
+        throw new Error('Basic local write verification returned false');
+      }
+
+      logger.info('passed', { defaultCategoryCount: categories.length });
+      setSmokeStatus('passed');
+    } catch (error) {
+      logger.error('failed', error);
+      setSmokeStatus('failed');
+    }
+  }
+
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="px-5 pb-10 pt-16">
       <Text className="text-xs font-black uppercase tracking-[0.24em] text-stamp">Operations</Text>
@@ -20,6 +57,29 @@ export default function SettingsScreen() {
           Supabase connection and authenticated sync controls will attach here.
         </Text>
       </View>
+
+      {__DEV__ ? (
+        <View className="mt-5 rounded-3xl border border-dashed border-stamp bg-card p-5">
+          <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">
+            Developer validation
+          </Text>
+          <Text className="mt-3 text-xl font-black text-foreground">Local SQLite smoke test</Text>
+          <Text className="mt-2 text-sm leading-5 text-muted">
+            Runs migrations, seeds default categories twice, and writes one row to every local table.
+            Details print to Expo logs under [sqlite-smoke].
+          </Text>
+          <Pressable
+            className="mt-4 rounded-2xl bg-foreground px-4 py-3"
+            disabled={smokeStatus === 'running'}
+            onPress={runLocalSmokeTest}
+          >
+            <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-background">
+              {smokeStatus === 'running' ? 'Running…' : 'Run smoke test'}
+            </Text>
+          </Pressable>
+          <Text className="mt-3 text-sm font-bold text-foreground">Status: {smokeStatus}</Text>
+        </View>
+      ) : null}
 
       <View className="mt-5 overflow-hidden rounded-3xl border border-border bg-card">
         {settingsRows.map((row) => (

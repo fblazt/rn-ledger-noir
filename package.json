@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "validate:supabase": "node ./scripts/validate-supabase-rls.mjs"
+    "validate:supabase": "node ./scripts/validate-supabase-rls.mjs",
+    "validate:sqlite": "node ./scripts/validate-sqlite-schema.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
