@@ -1,11 +1,9 @@
+import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import {
-  initializeDatabase,
-  listDefaultCategories,
-  seedDefaultCategories,
-} from '@/src/db';
+import { initializeDatabase, listDefaultCategories, seedDefaultCategories } from '@/src/db';
+import { ErrorState, LoadingState, Screen, SyncBadge } from '@/src/components/ui';
 import { verifyBasicLocalWrites } from '@/src/db/smoke';
 import { createLogger } from '@/src/lib/logger';
 
@@ -41,12 +39,12 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="px-5 pb-10 pt-16">
-      <Text className="text-xs font-black uppercase tracking-[0.24em] text-stamp">Operations</Text>
-      <Text className="mt-3 text-5xl font-black tracking-tight text-foreground">Settings desk</Text>
-      <Text className="mt-3 text-base leading-6 text-muted">
-        Account, sync, and data safety controls should feel deliberate and audit-friendly.
-      </Text>
+    <Screen
+      action={<SyncBadge status="idle" />}
+      description="Account, sync, and data safety controls should feel deliberate and audit-friendly."
+      eyebrow="Operations"
+      title="Settings desk"
+    >
 
       <View className="mt-8 rounded-[32px] bg-primary p-5">
         <Text className="text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground/70">
@@ -59,7 +57,16 @@ export default function SettingsScreen() {
       </View>
 
       {__DEV__ ? (
-        <View className="mt-5 rounded-3xl border border-dashed border-stamp bg-card p-5">
+        <View className="mt-5 gap-4">
+          <LoadingState
+            description="Confirms loading states use the same receipt-desk language as the rest of the shell."
+            title="Balancing local ledger"
+          />
+          <ErrorState
+            description="Confirms errors feel deliberate before real sync failures are wired in."
+            title="Sync review needed"
+          />
+          <View className="rounded-3xl border border-dashed border-stamp bg-card p-5">
           <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">
             Developer validation
           </Text>
@@ -78,8 +85,21 @@ export default function SettingsScreen() {
             </Text>
           </Pressable>
           <Text className="mt-3 text-sm font-bold text-foreground">Status: {smokeStatus}</Text>
+          </View>
         </View>
       ) : null}
+
+      <View className="mt-5 rounded-3xl border border-border bg-card p-5">
+        <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Auth routes</Text>
+        <View className="mt-4 flex-row gap-3">
+          <Link href="/(auth)/login" className="flex-1 rounded-2xl bg-receipt px-4 py-3 text-center text-sm font-black text-primary">
+            Login
+          </Link>
+          <Link href="/(auth)/register" className="flex-1 rounded-2xl bg-receipt px-4 py-3 text-center text-sm font-black text-primary">
+            Register
+          </Link>
+        </View>
+      </View>
 
       <View className="mt-5 overflow-hidden rounded-3xl border border-border bg-card">
         {settingsRows.map((row) => (
@@ -88,6 +108,6 @@ export default function SettingsScreen() {
           </View>
         ))}
       </View>
-    </ScrollView>
+    </Screen>
   );
 }
