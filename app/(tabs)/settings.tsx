@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -9,7 +9,7 @@ import { verifyBasicLocalWrites } from '@/src/db/smoke';
 import { createLogger } from '@/src/lib/logger';
 
 const logger = createLogger('sqlite-smoke');
-const settingsRows = ['Manual sync', 'Manage categories', 'Clear local cache'];
+const settingsRows = ['Manual sync', 'Clear local cache'];
 const DEV_SMOKE_USER_ID = '00000000-0000-4000-8000-000000000003';
 
 export default function SettingsScreen() {
@@ -135,6 +135,9 @@ export default function SettingsScreen() {
       </View>
 
       <View className="mt-5 overflow-hidden rounded-3xl border border-border bg-card">
+        <Pressable className="border-b border-border px-5 py-4" onPress={() => router.push('/categories' as never)}>
+          <Text className="text-base font-bold text-foreground">Manage categories</Text>
+        </Pressable>
         {settingsRows.map((row) => (
           <View key={row} className="border-b border-border px-5 py-4">
             <Text className="text-base font-bold text-foreground">{row}</Text>
