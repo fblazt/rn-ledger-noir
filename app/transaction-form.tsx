@@ -1,11 +1,18 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { createLocalAttachment, deleteLocalAttachment, listLocalAttachments } from '@/src/attachments';
+import type { Attachment } from '@/src/attachments';
 import { useAuth } from '@/src/auth';
 import { listLocalCategories } from '@/src/categories';
 import type { Category, CategoryType } from '@/src/categories';
-import { AmountInput, DatePickerField, FieldError, FormError, LoadingState, Screen } from '@/src/components/ui';
+import { AmountInput, ConfirmationDialog, DatePickerField, FieldError, FormError, LoadingState, Screen } from '@/src/components/ui';
 import { toIsoDate } from '@/src/lib/date';
 import {
   createLocalTransaction,
@@ -27,8 +34,16 @@ type FieldErrors = Partial<Record<keyof TransactionFormInput, string>>;
 
 export default function TransactionFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const colorScheme = useColorScheme() ?? 'light';
+  const iconColor = Colors[colorScheme].text;
+  const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [deleteAttachmentError, setDeleteAttachmentError] = useState<string | null>(null);
+  const [deleteAttachmentTarget, setDeleteAttachmentTarget] = useState<Attachment | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [form, setForm] = useState<TransactionFormInput>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
@@ -50,8 +65,12 @@ export default function TransactionFormScreen() {
       setFormError(null);
 
       try {
-        const categoryRows = await listLocalCategories(user.id);
+        const [categoryRows, attachmentRows] = await Promise.all([
+          listLocalCategories(user.id),
+          id ? listLocalAttachments(user.id, id) : Promise.resolve([]),
+        ]);
         setCategories(categoryRows);
+        setAttachments(attachmentRows);
 
         if (!id) {
           return;
@@ -127,6 +146,64 @@ export default function TransactionFormScreen() {
       setFormError(error instanceof Error ? error.message : 'Unable to save transaction.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function addAttachment(source: 'camera' | 'library') {
+    if (!user || !id) {
+      setAttachmentError('Save the transaction before adding receipts.');
+      return;
+    }
+
+    setAttachmentError(null);
+    setAttachmentLoading(true);
+
+    try {
+      const permission = source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        setAttachmentError(source === 'camera' ? 'Camera permission is needed to take a receipt photo.' : 'Photo library permission is needed to attach a receipt.');
+        return;
+      }
+
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      await createLocalAttachment(user.id, id, {
+        fileName: asset.fileName,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType,
+        uri: asset.uri,
+      });
+      setAttachments(await listLocalAttachments(user.id, id));
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : 'Unable to attach receipt.');
+    } finally {
+      setAttachmentLoading(false);
+    }
+  }
+
+  async function confirmDeleteAttachment() {
+    if (!user || !deleteAttachmentTarget) {
+      return;
+    }
+
+    setDeleteAttachmentError(null);
+
+    try {
+      await deleteLocalAttachment(user.id, deleteAttachmentTarget.id);
+      setDeleteAttachmentTarget(null);
+      setAttachments(id ? await listLocalAttachments(user.id, id) : []);
+    } catch (error) {
+      setDeleteAttachmentError(error instanceof Error ? error.message : 'Unable to remove receipt.');
     }
   }
 
@@ -228,6 +305,63 @@ export default function TransactionFormScreen() {
         />
         {fieldErrors.note ? <FieldError message={fieldErrors.note} /> : null}
 
+        <View className="mt-6 rounded-[24px] border border-border bg-background p-4">
+          <View className="flex-row items-start justify-between gap-4">
+            <View className="flex-1">
+              <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Receipts</Text>
+              <Text className="mt-2 text-sm leading-5 text-muted">
+                {id ? 'Attach local receipt images. Files are copied into app storage.' : 'Save the transaction before adding receipts.'}
+              </Text>
+            </View>
+            <View className="flex-row gap-2">
+              <Pressable
+                className={id && !attachmentLoading ? 'h-11 w-11 items-center justify-center rounded-full bg-card' : 'h-11 w-11 items-center justify-center rounded-full bg-border opacity-60'}
+                disabled={!id || attachmentLoading}
+                onPress={() => addAttachment('camera')}
+              >
+                <Ionicons color={iconColor} name="camera-outline" size={20} />
+              </Pressable>
+              <Pressable
+                className={id && !attachmentLoading ? 'h-11 w-11 items-center justify-center rounded-full bg-card' : 'h-11 w-11 items-center justify-center rounded-full bg-border opacity-60'}
+                disabled={!id || attachmentLoading}
+                onPress={() => addAttachment('library')}
+              >
+                <Ionicons color={iconColor} name="image-outline" size={20} />
+              </Pressable>
+            </View>
+          </View>
+
+          {attachmentError ? <FormError message={attachmentError} /> : null}
+
+          {attachments.length > 0 ? (
+            <View className="mt-4 gap-3">
+              {attachments.map((attachment) => (
+                <View key={attachment.id} className="flex-row items-center gap-3 rounded-2xl border border-border bg-card p-3">
+                  <Pressable
+                    className="overflow-hidden rounded-xl"
+                    onPress={() => router.push({ pathname: '/attachment-preview', params: { uri: attachment.local_uri } } as never)}
+                  >
+                    <Image source={{ uri: attachment.local_uri }} style={{ height: 64, width: 64 }} contentFit="cover" />
+                  </Pressable>
+                  <View className="flex-1">
+                    <Text className="text-sm font-black text-foreground">Receipt photo</Text>
+                    <Text className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted">{attachment.upload_status} · {attachment.sync_status}</Text>
+                  </View>
+                  <Pressable
+                    className="h-10 w-10 items-center justify-center rounded-full bg-danger"
+                    onPress={() => {
+                      setDeleteAttachmentError(null);
+                      setDeleteAttachmentTarget(attachment);
+                    }}
+                  >
+                    <Ionicons color={primaryForegroundColor} name="trash-outline" size={18} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
         {formError ? <FormError message={formError} /> : null}
 
         <Pressable
@@ -240,6 +374,19 @@ export default function TransactionFormScreen() {
           </Text>
         </Pressable>
       </View>
+
+      <ConfirmationDialog
+        confirmLabel="Remove receipt"
+        description="Remove this receipt photo from the transaction?"
+        errorMessage={deleteAttachmentError}
+        onCancel={() => {
+          setDeleteAttachmentError(null);
+          setDeleteAttachmentTarget(null);
+        }}
+        onConfirm={confirmDeleteAttachment}
+        title="Remove receipt?"
+        visible={Boolean(deleteAttachmentTarget)}
+      />
     </Screen>
   );
 }
