@@ -52,9 +52,18 @@ try {
   const userA = await signIn(config.userA.email, config.userA.password);
   const userB = await signIn(config.userB.email, config.userB.password);
 
-  await check('user A can upsert own profile', async () => {
-    const profile = await upsertProfile(userA, `${marker}-a`);
+  await check('user A has server-created profile and can update it', async () => {
+    const profile = await getProfile(userA);
     assert(profile.id === userA.id, 'profile id should match user A id');
+    assert(profile.currency === 'IDR', 'profile should use the default IDR currency');
+
+    const updatedProfile = await updateProfileDisplayName(userA, `${marker}-a`);
+    assert(updatedProfile.display_name === `${marker}-a`, 'profile display name should update');
+  });
+
+  await check('user B has server-created profile', async () => {
+    const profile = await getProfile(userB);
+    assert(profile.id === userB.id, 'profile id should match user B id');
   });
 
   await check('user B cannot read user A profile', async () => {
@@ -246,18 +255,22 @@ async function signIn(email, password) {
   };
 }
 
-async function upsertProfile(user, displayName) {
-  const rows = await rest(user, 'POST', '/profiles', {
+async function getProfile(user) {
+  const rows = await rest(user, 'GET', `/profiles?id=eq.${user.id}&select=*`);
+
+  assert(rows.length === 1, 'server-side profile bootstrap should create one profile row');
+  return rows[0];
+}
+
+async function updateProfileDisplayName(user, displayName) {
+  const rows = await rest(user, 'PATCH', `/profiles?id=eq.${user.id}`, {
     body: {
-      currency: 'IDR',
       display_name: displayName,
-      email: user.email,
-      id: user.id,
     },
-    prefer: 'resolution=merge-duplicates,return=representation',
+    prefer: 'return=representation',
   });
 
-  assert(rows.length === 1, 'profile upsert should return one row');
+  assert(rows.length === 1, 'profile update should return one row');
   return rows[0];
 }
 

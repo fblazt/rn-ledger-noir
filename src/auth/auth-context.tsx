@@ -159,26 +159,18 @@ function delay(milliseconds: number) {
 }
 
 async function ensureAuthenticatedUserSetup(user: User) {
-  const existingProfile = await supabase
+  const profile = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, email, display_name, currency')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (existingProfile.error) {
-    throw existingProfile.error;
+  if (profile.error) {
+    throw profile.error;
   }
 
-  if (!existingProfile.data) {
-    const insertedProfile = await supabase.from('profiles').insert({
-      currency: 'IDR',
-      email: user.email,
-      id: user.id,
-    });
-
-    if (insertedProfile.error) {
-      throw insertedProfile.error;
-    }
+  if (!profile.data) {
+    throw new Error('Authenticated profile is missing. Apply the server-side profile bootstrap migration.');
   }
 
   const db = await initializeDatabase();
@@ -188,19 +180,24 @@ async function ensureAuthenticatedUserSetup(user: User) {
     `insert into local_profiles (
       id,
       email,
+      display_name,
       currency,
       created_at,
       updated_at,
       sync_status,
       synced_at
-    ) values (?, ?, 'IDR', ?, ?, 'synced', ?)
+    ) values (?, ?, ?, ?, ?, ?, 'synced', ?)
     on conflict(id) do update set
       email = excluded.email,
+      display_name = excluded.display_name,
+      currency = excluded.currency,
       updated_at = excluded.updated_at,
       sync_status = 'synced',
       synced_at = excluded.synced_at`,
-    user.id,
-    user.email ?? null,
+    profile.data.id,
+    profile.data.email ?? user.email ?? null,
+    profile.data.display_name ?? null,
+    profile.data.currency,
     timestamp,
     timestamp,
     timestamp
