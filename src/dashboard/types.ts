@@ -3,9 +3,18 @@ export type DashboardSummary = {
   incomeTotal: number;
   expenseTotal: number;
   balance: number;
+  budgetSummary: DashboardBudgetSummary;
   pendingSyncCount: number;
   topSpendingCategory: DashboardTopCategory | null;
   recentTransactions: DashboardRecentTransaction[];
+};
+
+export type DashboardBudgetSummary = {
+  budgetCount: number;
+  limitTotal: number;
+  usedTotal: number;
+  remainingTotal: number;
+  usagePercent: number;
 };
 
 export type DashboardTopCategory = {

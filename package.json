@@ -10,7 +10,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "validate:supabase": "node ./scripts/validate-supabase-rls.mjs",
-    "validate:sqlite": "node ./scripts/validate-sqlite-schema.mjs"
+    "validate:sqlite": "node ./scripts/validate-sqlite-schema.mjs",
+    "validate:dashboard": "node ./scripts/validate-dashboard-summary.mjs",
+    "validate:budgets": "node ./scripts/validate-budget-summary.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

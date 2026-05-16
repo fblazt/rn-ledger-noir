@@ -76,6 +76,15 @@ type DashboardContentProps = {
   summary: DashboardSummary;
 };
 
+function formatCompactAmount(amount: number) {
+  return new Intl.NumberFormat('id-ID', {
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+    notation: amount >= 1_000_000 ? 'compact' : 'standard',
+    style: 'currency',
+  }).format(amount);
+}
+
 function DashboardContent({ summary }: DashboardContentProps) {
   return (
     <>
@@ -125,10 +134,25 @@ function DashboardContent({ summary }: DashboardContentProps) {
       </View>
 
       <View className="mt-4 rounded-[24px] border border-dashed border-border bg-receipt p-5">
-        <Text className="text-xs font-bold uppercase tracking-[0.18em] text-muted">Budget pressure</Text>
-        <Text className="mt-3 text-lg font-black text-foreground">Budget tracking unlocks in Phase 9</Text>
-        <Text className="mt-2 text-sm leading-5 text-muted">
-          This placeholder will become used, remaining, and percentage totals once local budget workflows are added.
+        <View className="flex-row items-start justify-between gap-4">
+          <View className="flex-1">
+            <Text className="text-xs font-bold uppercase tracking-[0.18em] text-muted">Budget pressure</Text>
+            <Text className="mt-3 text-lg font-black text-foreground">
+              {summary.budgetSummary.budgetCount > 0
+                ? `${Math.round(summary.budgetSummary.usagePercent)}% used across ${summary.budgetSummary.budgetCount} budgets`
+                : 'No budgets for this month'}
+            </Text>
+          </View>
+          <AmountText amount={summary.budgetSummary.remainingTotal} size="sm" tone={summary.budgetSummary.remainingTotal < 0 ? 'expense' : 'income'} />
+        </View>
+        <View className="mt-4 h-3 overflow-hidden rounded-full bg-border">
+          <View
+            className={summary.budgetSummary.usagePercent >= 100 ? 'h-3 rounded-full bg-danger' : summary.budgetSummary.usagePercent >= 80 ? 'h-3 rounded-full bg-warning' : 'h-3 rounded-full bg-success'}
+            style={{ width: `${Math.min(Math.max(summary.budgetSummary.usagePercent, 0), 100)}%` }}
+          />
+        </View>
+        <Text className="mt-3 text-sm leading-5 text-muted">
+          Used {formatCompactAmount(summary.budgetSummary.usedTotal)} of {formatCompactAmount(summary.budgetSummary.limitTotal)}.
         </Text>
       </View>
 

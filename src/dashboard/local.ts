@@ -11,11 +11,17 @@ type PendingSyncRow = {
   count: number;
 };
 
+type BudgetSummaryRow = {
+  budget_count: number;
+  limit_total: number | null;
+  used_total: number | null;
+};
+
 export async function getLocalDashboardSummary(userId: string, month: string): Promise<DashboardSummary> {
   const db = await initializeDatabase();
   const monthPattern = `${month}-%`;
 
-  const [totals, topSpendingCategory, recentTransactions, pendingSync] = await Promise.all([
+  const [totals, topSpendingCategory, recentTransactions, pendingSync, budgetSummary] = await Promise.all([
     db.getFirstAsync<TotalsRow>(
       `select
          coalesce(sum(case when type = 'income' then amount else 0 end), 0) as income_total,
@@ -70,13 +76,48 @@ export async function getLocalDashboardSummary(userId: string, month: string): P
          and sync_status = 'pending'`,
       userId
     ),
+    db.getFirstAsync<BudgetSummaryRow>(
+      `select
+         count(*) as budget_count,
+         coalesce(sum(limit_amount), 0) as limit_total,
+         coalesce(sum(used_amount), 0) as used_total
+       from (
+         select
+           b.id,
+           b.limit_amount,
+           coalesce(sum(t.amount), 0) as used_amount
+         from local_budgets b
+         left join local_transactions t
+           on t.user_id = b.user_id
+          and t.category_id = b.category_id
+          and t.type = 'expense'
+          and t.deleted_at is null
+          and t.transaction_date like b.month || '-%'
+         where b.user_id = ?
+           and b.month = ?
+           and b.deleted_at is null
+         group by b.id
+       )`,
+      userId,
+      month
+    ),
   ]);
 
   const incomeTotal = totals?.income_total ?? 0;
   const expenseTotal = totals?.expense_total ?? 0;
 
+  const budgetLimitTotal = budgetSummary?.limit_total ?? 0;
+  const budgetUsedTotal = budgetSummary?.used_total ?? 0;
+
   return {
     balance: incomeTotal - expenseTotal,
+    budgetSummary: {
+      budgetCount: budgetSummary?.budget_count ?? 0,
+      limitTotal: budgetLimitTotal,
+      remainingTotal: budgetLimitTotal - budgetUsedTotal,
+      usagePercent: budgetLimitTotal > 0 ? (budgetUsedTotal / budgetLimitTotal) * 100 : 0,
+      usedTotal: budgetUsedTotal,
+    },
     expenseTotal,
     incomeTotal,
     month,
