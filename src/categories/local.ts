@@ -150,6 +150,12 @@ export async function getActiveCategoryCount(userId: string, type: TransactionTy
   return row?.count ?? 0;
 }
 
+export async function getLocalCategoryById(userId: string, categoryId: string) {
+  const db = await initializeDatabase();
+
+  return getLocalCategory(db, userId, categoryId);
+}
+
 async function getLocalCategory(db: SQLiteDatabase, userId: string, categoryId: string) {
   return db.getFirstAsync<LocalCategory>(
     `select *

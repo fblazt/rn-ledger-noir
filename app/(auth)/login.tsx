@@ -74,6 +74,12 @@ export default function LoginScreen() {
           value={password}
         />
 
+        {errorMessage ? (
+          <View className="mt-5">
+            <ErrorState description={errorMessage} title="Login failed" />
+          </View>
+        ) : null}
+
         <Pressable
           className={
             submitting
@@ -88,12 +94,6 @@ export default function LoginScreen() {
           </Text>
         </Pressable>
       </View>
-
-      {errorMessage ? (
-        <View className="mt-5">
-          <ErrorState description={errorMessage} title="Login failed" />
-        </View>
-      ) : null}
 
       <Link href="/(auth)/register" className="mt-6 text-center text-base font-black text-primary">
         Need an account? Register

@@ -71,7 +71,7 @@ const secureStorage = {
 };
 
 function chunkKey(key: string, index: number) {
-  return `${key}:chunk:${index}`;
+  return `${key}.chunk.${index}`;
 }
 
 function parseChunkMetadata(value: string): ChunkMetadata | null {

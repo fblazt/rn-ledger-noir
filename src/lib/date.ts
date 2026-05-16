@@ -9,3 +9,32 @@ export function toMonthKey(date: Date) {
 export function nowIso() {
   return new Date().toISOString();
 }
+
+export function formatReadableDate(dateValue: string) {
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateValue;
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+    year: 'numeric',
+  }).format(date);
+}
+
+export function formatMonthLabel(monthValue: string) {
+  const date = new Date(`${monthValue}-01T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return monthValue;
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'long',
+    timeZone: 'UTC',
+    year: 'numeric',
+  }).format(date);
+}

@@ -74,6 +74,12 @@ export default function RegisterScreen() {
           value={password}
         />
 
+        {errorMessage ? (
+          <View className="mt-5">
+            <ErrorState description={errorMessage} title="Registration failed" />
+          </View>
+        ) : null}
+
         <Pressable
           className={
             submitting
@@ -88,12 +94,6 @@ export default function RegisterScreen() {
           </Text>
         </Pressable>
       </View>
-
-      {errorMessage ? (
-        <View className="mt-5">
-          <ErrorState description={errorMessage} title="Registration failed" />
-        </View>
-      ) : null}
 
       <Link href="/(auth)/login" className="mt-6 text-center text-base font-black text-primary">
         Already have an account? Log in

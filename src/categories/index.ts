@@ -2,6 +2,7 @@ export {
   createLocalCategory,
   deleteLocalCategory,
   getActiveCategoryCount,
+  getLocalCategoryById,
   listLocalCategories,
   updateLocalCategory,
 } from './local';
