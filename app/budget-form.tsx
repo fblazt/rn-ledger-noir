@@ -1,5 +1,6 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
@@ -29,6 +30,20 @@ export default function BudgetFormScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  const loadCategoryOptions = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    const [categoryRows, budgetedIds] = await Promise.all([
+      listLocalCategories(user.id, { type: 'expense' }),
+      listBudgetedCategoryIds(user.id, form.month, id),
+    ]);
+
+    setCategories(categoryRows);
+    setBudgetedCategoryIds(budgetedIds);
+  }, [form.month, id, user]);
+
   useEffect(() => {
     async function loadFormData() {
       if (!user) {
@@ -39,13 +54,7 @@ export default function BudgetFormScreen() {
       setFormError(null);
 
       try {
-        const [categoryRows, budgetedIds] = await Promise.all([
-          listLocalCategories(user.id, { type: 'expense' }),
-          listBudgetedCategoryIds(user.id, form.month, id),
-        ]);
-
-        setCategories(categoryRows);
-        setBudgetedCategoryIds(budgetedIds);
+        await loadCategoryOptions();
 
         if (!id) {
           return;
@@ -71,7 +80,15 @@ export default function BudgetFormScreen() {
     }
 
     loadFormData();
-  }, [form.month, id, user]);
+  }, [id, loadCategoryOptions, user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCategoryOptions().catch((error) => {
+        setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
+      });
+    }, [loadCategoryOptions])
+  );
 
   async function submitBudget() {
     if (!user) {
@@ -117,9 +134,9 @@ export default function BudgetFormScreen() {
 
   if (loading) {
     return (
-      <Screen description="Preparing the local budget form." eyebrow="Limits" title="Budget limit">
+      <Screen description="Preparing your budget form." eyebrow="Limits" title="Budget limit">
         <View className="mt-7">
-          <LoadingState description="Reading budget details from SQLite." title="Opening budget" />
+          <LoadingState description="Loading budget details." title="Opening budget" />
         </View>
       </Screen>
     );
@@ -127,11 +144,16 @@ export default function BudgetFormScreen() {
 
   return (
     <Screen
-      description="Set one monthly limit per expense category. Usage is calculated from local transactions."
+      description="Set one monthly limit per expense category. Usage updates from your spending entries."
       eyebrow="Limits"
       title={id ? 'Edit budget' : 'New budget'}
     >
-      <Pressable className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card" onPress={() => router.back()}>
+      <Pressable
+        accessibilityLabel="Go back"
+        accessibilityRole="button"
+        className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+        onPress={() => router.back()}
+      >
         <Text className="text-xl font-black text-foreground">←</Text>
       </Pressable>
 
@@ -158,6 +180,9 @@ export default function BudgetFormScreen() {
                       ? 'rounded-full border border-border bg-border px-4 py-2 opacity-60'
                       : 'rounded-full border border-border bg-background px-4 py-2'
                 }
+                accessibilityLabel={disabled ? `${category.name} already has a budget for this month` : `Choose ${category.name}`}
+                accessibilityRole="button"
+                accessibilityState={{ disabled, selected }}
                 disabled={disabled}
                 onPress={() => setForm((current) => ({ ...current, categoryId: category.id }))}
               >
@@ -175,8 +200,21 @@ export default function BudgetFormScreen() {
               </Pressable>
             );
           })}
+          <Pressable
+            accessibilityLabel="Create expense category"
+            accessibilityRole="button"
+            className="rounded-full border border-dashed border-stamp bg-card px-4 py-2"
+            onPress={() => router.push({ pathname: '/category-form', params: { type: 'expense' } } as never)}
+          >
+            <Text className="text-sm font-black text-stamp">+ New category</Text>
+          </Pressable>
         </View>
-        {categories.length === 0 ? <Text className="mt-3 text-sm text-muted">Create an expense category first.</Text> : null}
+        {categories.length === 0 ? (
+          <View className="mt-3 rounded-2xl border border-dashed border-border bg-background p-4">
+            <Text className="text-sm font-black text-foreground">No expense categories yet.</Text>
+            <Text className="mt-1 text-sm leading-5 text-muted">Create one before setting a budget.</Text>
+          </View>
+        ) : null}
         {fieldErrors.categoryId ? <FieldError message={fieldErrors.categoryId} /> : null}
 
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Limit</Text>
@@ -187,6 +225,9 @@ export default function BudgetFormScreen() {
 
         <Pressable
           className={submitting ? 'mt-6 rounded-2xl bg-muted px-4 py-4' : 'mt-6 rounded-2xl bg-primary px-4 py-4'}
+          accessibilityLabel={id ? 'Save budget changes' : 'Add budget'}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: submitting }}
           disabled={submitting}
           onPress={submitBudget}
         >

@@ -23,10 +23,13 @@ const EMPTY_FORM: CategoryFormInput = {
 type FieldErrors = Partial<Record<keyof CategoryFormInput, string>>;
 
 export default function CategoryFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, type } = useLocalSearchParams<{ id?: string; type?: string }>();
   const { user } = useAuth();
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [form, setForm] = useState<CategoryFormInput>(EMPTY_FORM);
+  const [form, setForm] = useState<CategoryFormInput>(() => ({
+    ...EMPTY_FORM,
+    type: type === 'income' ? 'income' : 'expense',
+  }));
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(id));
   const [submitting, setSubmitting] = useState(false);
@@ -113,7 +116,7 @@ export default function CategoryFormScreen() {
     return (
       <Screen eyebrow="Taxonomy" title="Category desk" description="Preparing the category record.">
         <View className="mt-7">
-          <LoadingState description="Reading category details from SQLite." title="Opening category" />
+          <LoadingState description="Loading category details." title="Opening category" />
         </View>
       </Screen>
     );
@@ -125,7 +128,12 @@ export default function CategoryFormScreen() {
       eyebrow="Taxonomy"
       title={id ? 'Edit category' : 'New category'}
     >
-      <Pressable className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card" onPress={() => router.back()}>
+      <Pressable
+        accessibilityLabel="Go back"
+        accessibilityRole="button"
+        className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+        onPress={() => router.back()}
+      >
         <Text className="text-xl font-black text-foreground">←</Text>
       </Pressable>
 
@@ -140,6 +148,9 @@ export default function CategoryFormScreen() {
                   ? 'flex-1 rounded-2xl bg-primary px-4 py-3'
                   : 'flex-1 rounded-2xl border border-border bg-background px-4 py-3'
               }
+              accessibilityLabel={`Set category type to ${type}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: form.type === type }}
               onPress={() => setForm((current) => ({ ...current, type }))}
             >
               <Text
@@ -157,6 +168,7 @@ export default function CategoryFormScreen() {
 
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Name</Text>
         <TextInput
+          accessibilityLabel="Category name"
           className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
           onChangeText={(name) => setForm((current) => ({ ...current, name }))}
           placeholder="Coffee, Freelance, Parking…"
@@ -168,6 +180,7 @@ export default function CategoryFormScreen() {
 
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Icon label</Text>
         <TextInput
+          accessibilityLabel="Category icon label"
           autoCapitalize="none"
           className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
           onChangeText={(icon) => setForm((current) => ({ ...current, icon }))}
@@ -188,6 +201,9 @@ export default function CategoryFormScreen() {
                   ? 'h-11 w-11 rounded-full border-4 border-foreground'
                   : 'h-11 w-11 rounded-full border border-border'
               }
+              accessibilityLabel={`Choose category color ${color}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: form.color === color }}
               onPress={() => setForm((current) => ({ ...current, color }))}
               style={{ backgroundColor: color }}
             />
@@ -199,6 +215,9 @@ export default function CategoryFormScreen() {
 
         <Pressable
           className={submitting ? 'mt-6 rounded-2xl bg-muted px-4 py-4' : 'mt-6 rounded-2xl bg-primary px-4 py-4'}
+          accessibilityLabel={id ? 'Save category changes' : 'Create category'}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: submitting }}
           disabled={submitting}
           onPress={submitCategory}
         >

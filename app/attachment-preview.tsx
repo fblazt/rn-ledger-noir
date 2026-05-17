@@ -8,7 +8,7 @@ export default function AttachmentPreviewScreen() {
   const { uri } = useLocalSearchParams<{ uri?: string }>();
 
   return (
-    <Screen description="Local receipt image" eyebrow="Receipt" title="Preview">
+    <Screen description="Receipt photo" eyebrow="Receipt" title="Preview">
       <Pressable className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card" onPress={() => router.back()}>
         <Text className="text-xl font-black text-foreground">←</Text>
       </Pressable>

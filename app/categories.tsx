@@ -14,6 +14,18 @@ import { useSyncSummary } from '@/src/sync';
 
 type CategoryListFilter = 'all' | CategoryType;
 
+function formatSyncStatus(status: Category['sync_status']) {
+  if (status === 'failed') {
+    return ' · Backup failed';
+  }
+
+  if (status === 'pending') {
+    return ' · Needs backup';
+  }
+
+  return '';
+}
+
 const filters: { label: string; value: CategoryListFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'Expense', value: 'expense' },
@@ -129,11 +141,11 @@ export default function CategoriesScreen() {
 
       {loading ? (
         <View className="mt-7">
-          <LoadingState description="Pulling local category rows from SQLite." title="Sorting labels" />
+          <LoadingState description="Loading your category list." title="Sorting labels" />
         </View>
       ) : visibleCategories.length === 0 ? (
         <View className="mt-7">
-          <EmptyState description="Create a custom category to extend your local ledger." title="No matching categories." />
+          <EmptyState description="Create a custom category to organize your entries." title="No matching categories." />
         </View>
       ) : (
         <View className="mt-5 gap-3">
@@ -146,7 +158,7 @@ export default function CategoriesScreen() {
                     <Text className="text-xl font-black text-foreground">{category.name}</Text>
                   </View>
                   <Text className="mt-2 text-sm font-bold uppercase tracking-[0.16em] text-muted">
-                    {category.type} · {category.is_default === 1 ? 'Default' : 'Custom'} · {category.sync_status}
+                    {category.type} · {category.is_default === 1 ? 'Default' : 'Custom'}{formatSyncStatus(category.sync_status)}
                   </Text>
                 </View>
                 <Text className="font-mono text-sm font-black text-stamp">{category.icon ?? 'tag'}</Text>

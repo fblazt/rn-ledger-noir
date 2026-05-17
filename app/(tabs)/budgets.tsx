@@ -13,6 +13,18 @@ import { AmountText, ConfirmationDialog, EmptyState, ErrorState, LoadingState, M
 import { formatMonthLabel, toMonthKey } from '@/src/lib/date';
 import { useSyncSummary } from '@/src/sync';
 
+function formatSyncStatus(status: BudgetWithUsage['sync_status']) {
+  if (status === 'failed') {
+    return ' · Backup failed';
+  }
+
+  if (status === 'pending') {
+    return ' · Needs backup';
+  }
+
+  return '';
+}
+
 export default function BudgetsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const primaryForegroundColor = Colors[colorScheme].background;
@@ -77,8 +89,12 @@ export default function BudgetsScreen() {
         eyebrow="Limits"
         title="Budget pressure"
       >
-        <View className="mt-7 self-start">
-          <MonthPickerField value={month} onChange={setMonth} />
+        <View className="mt-7 flex-row items-center justify-between rounded-3xl border border-border bg-card p-4">
+          <View>
+            <Text className="text-xs font-black uppercase tracking-[0.18em] text-muted">Viewing</Text>
+            <Text className="mt-1 text-lg font-black text-foreground">{formatMonthLabel(month)}</Text>
+          </View>
+          <MonthPickerField compact value={month} onChange={setMonth} />
         </View>
 
         {errorMessage ? (
@@ -89,7 +105,7 @@ export default function BudgetsScreen() {
 
         {loading ? (
           <View className="mt-7">
-            <LoadingState description="Calculating local usage from SQLite." title="Reading limits" />
+            <LoadingState description="Calculating this month's budget usage." title="Reading limits" />
           </View>
         ) : budgets.length === 0 ? (
           <View className="mt-7">
@@ -160,7 +176,7 @@ function BudgetCard({ budget, onDelete }: BudgetCardProps) {
             <Text className="text-xl font-black text-foreground">{budget.category_name}</Text>
           </View>
           <Text className="mt-2 text-sm font-bold uppercase tracking-[0.16em] text-muted">
-            {Math.round(budget.usage_percent)}% used · {budget.sync_status}
+            {Math.round(budget.usage_percent)}% used{formatSyncStatus(budget.sync_status)}
           </Text>
         </View>
         <AmountText amount={budget.limit_amount} size="sm" tone="default" />

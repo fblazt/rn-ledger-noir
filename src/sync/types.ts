@@ -2,8 +2,10 @@ import type { EntityType } from '@/src/db';
 
 export type SyncPhase = 'idle' | 'pushing' | 'pulling' | 'synced' | 'failed';
 
+export type SyncEntityType = Extract<EntityType, 'budget' | 'category' | 'transaction' | 'transaction_attachment'>;
+
 export type SyncEntityCount = {
-  entityType: EntityType;
+  entityType: SyncEntityType;
   failed: number;
   pending: number;
 };

@@ -21,10 +21,10 @@ const dotClass: Record<SyncBadgeStatus, string> = {
 };
 
 const label: Record<SyncBadgeStatus, string> = {
-  idle: 'Local idle',
-  pending: 'Sync pending',
-  synced: 'Synced',
-  failed: 'Sync failed',
+  idle: 'All saved',
+  pending: 'Needs backup',
+  synced: 'All saved',
+  failed: 'Backup failed',
 };
 
 export function SyncBadge({ status }: SyncBadgeProps) {

@@ -15,6 +15,18 @@ import { useSyncSummary } from '@/src/sync';
 import { deleteLocalTransaction, listLocalTransactions } from '@/src/transactions';
 import type { TransactionTypeFilter, TransactionWithCategory } from '@/src/transactions';
 
+function formatSyncStatus(status: TransactionWithCategory['sync_status']) {
+  if (status === 'failed') {
+    return ' · Backup failed';
+  }
+
+  if (status === 'pending') {
+    return ' · Needs backup';
+  }
+
+  return '';
+}
+
 const typeFilters: { label: string; value: TransactionTypeFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'Expense', value: 'expense' },
@@ -119,7 +131,7 @@ export default function TransactionsScreen() {
     <View className="flex-1 bg-background">
       <Screen
         action={<SyncBadge status={syncStatus} />}
-        description="A scan-friendly feed for daily spending, notes, receipt status, and sync state."
+        description="A scan-friendly feed for daily spending, notes, receipts, and backup status."
         eyebrow="Receipts"
         title="Transaction roll"
       >
@@ -150,7 +162,7 @@ export default function TransactionsScreen() {
 
       {loading ? (
         <View className="mt-7">
-          <LoadingState description="Reading the local ledger from SQLite." title="Counting receipts" />
+          <LoadingState description="Loading your spending entries." title="Counting receipts" />
         </View>
       ) : transactions.length === 0 ? (
         <View className="mt-7">
@@ -174,7 +186,7 @@ export default function TransactionsScreen() {
                     <Text className="text-xl font-black text-foreground">{transaction.category_name}</Text>
                   </View>
                   <Text className="mt-2 text-sm font-bold uppercase tracking-[0.16em] text-muted">
-                    {formatReadableDate(transaction.transaction_date)} · {transaction.sync_status}
+                    {formatReadableDate(transaction.transaction_date)}{formatSyncStatus(transaction.sync_status)}
                   </Text>
                   {transaction.note ? <Text className="mt-3 text-base leading-6 text-muted">{transaction.note}</Text> : null}
                 </View>

@@ -44,7 +44,7 @@ export default function LoginScreen() {
     <Screen
       eyebrow="Secure desk"
       title="Log in"
-      description="Use your Supabase account to unlock the private local ledger."
+      description="Sign in to unlock your private ledger and backup."
     >
       <View className="mt-8 rounded-[32px] border border-border bg-card p-5">
         <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Email</Text>

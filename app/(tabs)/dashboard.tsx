@@ -43,12 +43,16 @@ export default function DashboardScreen() {
   return (
     <Screen
       action={<SyncBadge status={syncStatus} />}
-      description="Offline monthly totals from your local SQLite ledger."
+      description="Monthly totals from your private spending history."
       eyebrow="Private ledger"
       title={`${formatMonthLabel(month)} pulse`}
     >
-      <View className="mt-7 self-start">
-        <MonthPickerField value={month} onChange={setMonth} />
+      <View className="mt-7 flex-row items-center justify-between rounded-3xl border border-border bg-card p-4">
+        <View>
+          <Text className="text-xs font-black uppercase tracking-[0.18em] text-muted">Viewing</Text>
+          <Text className="mt-1 text-lg font-black text-foreground">{formatMonthLabel(month)}</Text>
+        </View>
+        <MonthPickerField compact value={month} onChange={setMonth} />
       </View>
 
       {errorMessage ? (
@@ -59,7 +63,7 @@ export default function DashboardScreen() {
 
       {loading ? (
         <View className="mt-7">
-          <LoadingState description="Summing local transactions from SQLite." title="Balancing the ledger" />
+          <LoadingState description="Summing this month's entries." title="Balancing the ledger" />
         </View>
       ) : summary ? (
         <DashboardContent summary={summary} />
@@ -75,6 +79,18 @@ export default function DashboardScreen() {
 type DashboardContentProps = {
   summary: DashboardSummary;
 };
+
+function formatSyncStatus(status: DashboardSummary['recentTransactions'][number]['sync_status']) {
+  if (status === 'failed') {
+    return ' · Backup failed';
+  }
+
+  if (status === 'pending') {
+    return ' · Needs backup';
+  }
+
+  return '';
+}
 
 function formatCompactAmount(amount: number) {
   return new Intl.NumberFormat('id-ID', {
@@ -96,7 +112,7 @@ function DashboardContent({ summary }: DashboardContentProps) {
           <AmountText amount={summary.balance} size="lg" tone="inverse" />
         </View>
         <Text className="mt-3 max-w-64 text-sm leading-5 text-primary-foreground/75">
-          Income minus expenses for {formatMonthLabel(summary.month)}, calculated locally and available offline.
+          Income minus expenses for {formatMonthLabel(summary.month)}, available even offline.
         </Text>
       </View>
 
@@ -166,7 +182,7 @@ function DashboardContent({ summary }: DashboardContentProps) {
               <View key={transaction.id} className="flex-row items-center justify-between gap-4 border-b border-border pb-3">
                 <View className="flex-1">
                   <Text className="font-mono text-[11px] font-bold uppercase text-stamp">
-                    {formatReadableDate(transaction.transaction_date)} · {transaction.sync_status}
+                    {formatReadableDate(transaction.transaction_date)}{formatSyncStatus(transaction.sync_status)}
                   </Text>
                   <Text className="mt-1 text-base font-semibold text-foreground">{transaction.category_name}</Text>
                   {transaction.note ? <Text className="mt-1 text-sm text-muted">{transaction.note}</Text> : null}

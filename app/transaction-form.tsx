@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -32,6 +33,22 @@ const EMPTY_FORM: TransactionFormInput = {
 
 type FieldErrors = Partial<Record<keyof TransactionFormInput, string>>;
 
+function formatAttachmentStatus(attachment: Attachment) {
+  if (attachment.upload_status === 'failed' || attachment.sync_status === 'failed') {
+    return 'Backup failed';
+  }
+
+  if (attachment.upload_status === 'uploading') {
+    return 'Backing up';
+  }
+
+  if (attachment.sync_status === 'pending' || attachment.upload_status === 'local') {
+    return 'Needs backup';
+  }
+
+  return null;
+}
+
 export default function TransactionFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -56,6 +73,21 @@ export default function TransactionFormScreen() {
     [categories, form.type]
   );
 
+  const loadSupportingData = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    const [categoryRows, attachmentRows] = await Promise.all([
+      listLocalCategories(user.id),
+      id ? listLocalAttachments(user.id, id) : Promise.resolve([]),
+    ]);
+
+    setCategories(categoryRows);
+    setAttachments(attachmentRows);
+    await refreshAttachmentUris(attachmentRows);
+  }, [id, user]);
+
   useEffect(() => {
     async function loadFormData() {
       if (!user) {
@@ -66,13 +98,7 @@ export default function TransactionFormScreen() {
       setFormError(null);
 
       try {
-        const [categoryRows, attachmentRows] = await Promise.all([
-          listLocalCategories(user.id),
-          id ? listLocalAttachments(user.id, id) : Promise.resolve([]),
-        ]);
-        setCategories(categoryRows);
-        setAttachments(attachmentRows);
-        await refreshAttachmentUris(attachmentRows);
+        await loadSupportingData();
 
         if (!id) {
           return;
@@ -100,7 +126,15 @@ export default function TransactionFormScreen() {
     }
 
     loadFormData();
-  }, [id, user]);
+  }, [id, loadSupportingData, user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSupportingData().catch((error) => {
+        setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
+      });
+    }, [loadSupportingData])
+  );
 
   async function submitTransaction() {
     if (!user) {
@@ -241,9 +275,9 @@ export default function TransactionFormScreen() {
 
   if (loading) {
     return (
-      <Screen eyebrow="Receipts" title="Ledger entry" description="Preparing the local transaction form.">
+      <Screen eyebrow="Receipts" title="Ledger entry" description="Preparing your transaction form.">
         <View className="mt-7">
-          <LoadingState description="Reading transaction details from SQLite." title="Opening entry" />
+          <LoadingState description="Loading transaction details." title="Opening entry" />
         </View>
       </Screen>
     );
@@ -251,11 +285,16 @@ export default function TransactionFormScreen() {
 
   return (
     <Screen
-      description="Record a clean local ledger entry. Sync will pick it up later."
+      description="Record a clean ledger entry. Backup will run when your account is online."
       eyebrow="Receipts"
       title={id ? 'Edit entry' : 'New entry'}
     >
-      <Pressable className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card" onPress={() => router.back()}>
+      <Pressable
+        accessibilityLabel="Go back"
+        accessibilityRole="button"
+        className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+        onPress={() => router.back()}
+      >
         <Text className="text-xl font-black text-foreground">←</Text>
       </Pressable>
 
@@ -270,6 +309,9 @@ export default function TransactionFormScreen() {
                   ? 'flex-1 rounded-2xl bg-primary px-4 py-3'
                   : 'flex-1 rounded-2xl border border-border bg-background px-4 py-3'
               }
+              accessibilityLabel={`Set transaction type to ${type}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: form.type === type }}
               onPress={() => setFormType(type)}
             >
               <Text
@@ -299,6 +341,9 @@ export default function TransactionFormScreen() {
                   ? 'rounded-full border border-primary bg-primary px-4 py-2'
                   : 'rounded-full border border-border bg-background px-4 py-2'
               }
+              accessibilityLabel={`Choose ${category.name}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: form.categoryId === category.id }}
               onPress={() => setForm((current) => ({ ...current, categoryId: category.id }))}
             >
               <Text
@@ -312,7 +357,21 @@ export default function TransactionFormScreen() {
               </Text>
             </Pressable>
           ))}
+          <Pressable
+            accessibilityLabel={`Create ${form.type} category`}
+            accessibilityRole="button"
+            className="rounded-full border border-dashed border-stamp bg-card px-4 py-2"
+            onPress={() => router.push({ pathname: '/category-form', params: { type: form.type } } as never)}
+          >
+            <Text className="text-sm font-black text-stamp">+ New category</Text>
+          </Pressable>
         </View>
+        {formCategories.length === 0 ? (
+          <View className="mt-3 rounded-2xl border border-dashed border-border bg-background p-4">
+            <Text className="text-sm font-black text-foreground">No {form.type} categories yet.</Text>
+            <Text className="mt-1 text-sm leading-5 text-muted">Create one to keep this entry organized.</Text>
+          </View>
+        ) : null}
         {fieldErrors.categoryId ? <FieldError message={fieldErrors.categoryId} /> : null}
 
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Date</Text>
@@ -324,6 +383,7 @@ export default function TransactionFormScreen() {
 
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Note</Text>
         <TextInput
+          accessibilityLabel="Transaction note"
           className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
           onChangeText={(note) => setForm((current) => ({ ...current, note }))}
           placeholder="Optional memo"
@@ -338,12 +398,15 @@ export default function TransactionFormScreen() {
             <View className="flex-1">
               <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Receipts</Text>
               <Text className="mt-2 text-sm leading-5 text-muted">
-                {id ? 'Attach local receipt images. Files are copied into app storage.' : 'Save the transaction before adding receipts.'}
+                {id ? 'Attach receipt photos for safekeeping and backup.' : 'Save the transaction before adding receipts.'}
               </Text>
             </View>
             <View className="flex-row gap-2">
               <Pressable
                 className={id && !attachmentLoading ? 'h-11 w-11 items-center justify-center rounded-full bg-card' : 'h-11 w-11 items-center justify-center rounded-full bg-border opacity-60'}
+                accessibilityLabel="Take receipt photo"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !id || attachmentLoading }}
                 disabled={!id || attachmentLoading}
                 onPress={() => addAttachment('camera')}
               >
@@ -351,6 +414,9 @@ export default function TransactionFormScreen() {
               </Pressable>
               <Pressable
                 className={id && !attachmentLoading ? 'h-11 w-11 items-center justify-center rounded-full bg-card' : 'h-11 w-11 items-center justify-center rounded-full bg-border opacity-60'}
+                accessibilityLabel="Attach receipt from photo library"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !id || attachmentLoading }}
                 disabled={!id || attachmentLoading}
                 onPress={() => addAttachment('library')}
               >
@@ -366,6 +432,8 @@ export default function TransactionFormScreen() {
               {attachments.map((attachment) => (
                 <View key={attachment.id} className="flex-row items-center gap-3 rounded-2xl border border-border bg-card p-3">
                   <Pressable
+                    accessibilityLabel="Preview receipt photo"
+                    accessibilityRole="imagebutton"
                     className="overflow-hidden rounded-xl"
                     onPress={() => router.push({ pathname: '/attachment-preview', params: { uri: attachmentUris[attachment.id] ?? attachment.local_uri } } as never)}
                   >
@@ -379,9 +447,13 @@ export default function TransactionFormScreen() {
                   </Pressable>
                   <View className="flex-1">
                     <Text className="text-sm font-black text-foreground">Receipt photo</Text>
-                    <Text className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted">{attachment.upload_status} · {attachment.sync_status}</Text>
+                    {formatAttachmentStatus(attachment) ? (
+                      <Text className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted">{formatAttachmentStatus(attachment)}</Text>
+                    ) : null}
                   </View>
                   <Pressable
+                    accessibilityLabel="Remove receipt photo"
+                    accessibilityRole="button"
                     className="h-10 w-10 items-center justify-center rounded-full bg-danger"
                     onPress={() => {
                       setDeleteAttachmentError(null);
@@ -400,6 +472,9 @@ export default function TransactionFormScreen() {
 
         <Pressable
           className={submitting ? 'mt-6 rounded-2xl bg-muted px-4 py-4' : 'mt-6 rounded-2xl bg-primary px-4 py-4'}
+          accessibilityLabel={id ? 'Save transaction changes' : 'Add transaction'}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: submitting }}
           disabled={submitting}
           onPress={submitTransaction}
         >

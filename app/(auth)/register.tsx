@@ -44,7 +44,7 @@ export default function RegisterScreen() {
     <Screen
       eyebrow="New ledger"
       title="Register"
-      description="Create your Supabase account, local profile, and first default category set."
+      description="Create your account and start with a ready-made category set."
     >
       <View className="mt-8 rounded-[32px] border border-border bg-card p-5">
         <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Email</Text>
