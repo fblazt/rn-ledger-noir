@@ -10,6 +10,7 @@ import { useAuth } from '@/src/auth';
 import { deleteLocalCategory, listLocalCategories } from '@/src/categories';
 import type { Category, CategoryType } from '@/src/categories';
 import { ConfirmationDialog, EmptyState, ErrorState, LoadingState, Screen, SyncBadge } from '@/src/components/ui';
+import { useSyncSummary } from '@/src/sync';
 
 type CategoryListFilter = 'all' | CategoryType;
 
@@ -23,6 +24,7 @@ export default function CategoriesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
+  const { status: syncStatus } = useSyncSummary();
   const [categories, setCategories] = useState<Category[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export default function CategoriesScreen() {
   return (
     <View className="flex-1 bg-background">
       <Screen
-        action={<SyncBadge status={categories.some((category) => category.sync_status === 'pending') ? 'pending' : 'idle'} />}
+        action={<SyncBadge status={syncStatus} />}
         description="Shape the ledger vocabulary before receipts and budgets start using it."
         eyebrow="Taxonomy"
         title="Category desk"

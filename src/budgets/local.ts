@@ -2,6 +2,7 @@ import { initializeDatabase } from '@/src/db';
 import type { LocalBudget } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createId } from '@/src/lib/id';
+import { scheduleSyncAfterLocalWrite } from '@/src/sync/auto';
 
 import type { BudgetFormInput, BudgetWithUsage } from './types';
 
@@ -98,6 +99,8 @@ export async function createLocalBudget(userId: string, input: BudgetFormInput) 
     throw normalizeBudgetError(error);
   }
 
+  scheduleSyncAfterLocalWrite(userId);
+
   return getLocalBudget(userId, id);
 }
 
@@ -132,6 +135,8 @@ export async function updateLocalBudget(userId: string, budgetId: string, input:
     throw normalizeBudgetError(error);
   }
 
+  scheduleSyncAfterLocalWrite(userId);
+
   return getLocalBudget(userId, budgetId);
 }
 
@@ -157,6 +162,8 @@ export async function deleteLocalBudget(userId: string, budgetId: string) {
     budgetId,
     userId
   );
+
+  scheduleSyncAfterLocalWrite(userId);
 }
 
 async function assertExpenseCategory(userId: string, categoryId: string) {

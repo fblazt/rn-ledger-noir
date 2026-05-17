@@ -11,6 +11,7 @@ import { listLocalCategories } from '@/src/categories';
 import type { Category } from '@/src/categories';
 import { AmountText, ConfirmationDialog, EmptyState, ErrorState, LoadingState, MonthPickerField, Screen, SyncBadge } from '@/src/components/ui';
 import { formatReadableDate, toMonthKey } from '@/src/lib/date';
+import { useSyncSummary } from '@/src/sync';
 import { deleteLocalTransaction, listLocalTransactions } from '@/src/transactions';
 import type { TransactionTypeFilter, TransactionWithCategory } from '@/src/transactions';
 
@@ -25,6 +26,7 @@ export default function TransactionsScreen() {
   const iconColor = Colors[colorScheme].text;
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
+  const { status: syncStatus } = useSyncSummary();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryFilterId, setCategoryFilterId] = useState<string>('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -116,7 +118,7 @@ export default function TransactionsScreen() {
   return (
     <View className="flex-1 bg-background">
       <Screen
-        action={<SyncBadge status={transactions.some((transaction) => transaction.sync_status === 'pending') ? 'pending' : 'idle'} />}
+        action={<SyncBadge status={syncStatus} />}
         description="A scan-friendly feed for daily spending, notes, receipt status, and sync state."
         eyebrow="Receipts"
         title="Transaction roll"

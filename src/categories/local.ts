@@ -4,6 +4,7 @@ import { initializeDatabase } from '@/src/db';
 import type { LocalCategory, TransactionType } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createId } from '@/src/lib/id';
+import { scheduleSyncAfterLocalWrite } from '@/src/sync/auto';
 
 import type { CategoryFormInput } from './types';
 
@@ -62,6 +63,8 @@ export async function createLocalCategory(userId: string, input: CategoryFormInp
     timestamp
   );
 
+  scheduleSyncAfterLocalWrite(userId);
+
   return getLocalCategory(db, userId, id);
 }
 
@@ -95,6 +98,8 @@ export async function updateLocalCategory(userId: string, categoryId: string, in
     categoryId,
     userId
   );
+
+  scheduleSyncAfterLocalWrite(userId);
 
   return getLocalCategory(db, userId, categoryId);
 }
@@ -135,6 +140,8 @@ export async function deleteLocalCategory(userId: string, categoryId: string) {
     categoryId,
     userId
   );
+
+  scheduleSyncAfterLocalWrite(userId);
 }
 
 export async function getActiveCategoryCount(userId: string, type: TransactionType) {

@@ -1,21 +1,38 @@
 import { Link, router } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
-import { ErrorState, LoadingState, Screen, SyncBadge } from '@/src/components/ui';
+import { ErrorState, FormError, LoadingState, Screen, SyncBadge } from '@/src/components/ui';
 import { initializeDatabase, listDefaultCategories, seedDefaultCategories } from '@/src/db';
 import { verifyBasicLocalWrites } from '@/src/db/smoke';
 import { createLogger } from '@/src/lib/logger';
+import { getLocalSyncSummary, syncLocalData } from '@/src/sync';
+import type { SyncSummary } from '@/src/sync';
 
 const logger = createLogger('sqlite-smoke');
-const settingsRows = ['Manual sync', 'Clear local cache'];
+const settingsRows = ['Clear local cache'];
 const DEV_SMOKE_USER_ID = '00000000-0000-4000-8000-000000000003';
 
 export default function SettingsScreen() {
   const { setupStatus, signOut, user } = useAuth();
   const [logoutStatus, setLogoutStatus] = useState<'idle' | 'running' | 'failed'>('idle');
   const [smokeStatus, setSmokeStatus] = useState<'idle' | 'running' | 'passed' | 'failed'>('idle');
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'synced' | 'failed'>('idle');
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setSyncSummary(null);
+        return;
+      }
+
+      refreshSyncSummary(user.id);
+    }, [user])
+  );
 
   async function submitLogout() {
     setLogoutStatus('running');
@@ -26,6 +43,35 @@ export default function SettingsScreen() {
     } catch (error) {
       logger.error('logout failed', error);
       setLogoutStatus('failed');
+    }
+  }
+
+  async function refreshSyncSummary(userId: string) {
+    try {
+      setSyncSummary(await getLocalSyncSummary(userId));
+    } catch (error) {
+      logger.error('failed to load sync summary', error);
+    }
+  }
+
+  async function runManualSync() {
+    if (!user) {
+      setSyncError('Log in before syncing local data.');
+      return;
+    }
+
+    setSyncStatus('running');
+    setSyncError(null);
+
+    try {
+      await syncLocalData(user.id);
+      await refreshSyncSummary(user.id);
+      setSyncStatus('synced');
+    } catch (error) {
+      logger.error('manual sync failed', error);
+      await refreshSyncSummary(user.id);
+      setSyncError(error instanceof Error ? error.message : 'Sync failed. Try again.');
+      setSyncStatus('failed');
     }
   }
 
@@ -55,7 +101,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen
-      action={<SyncBadge status="idle" />}
+      action={<SyncBadge status={syncStatus === 'running' ? 'pending' : syncSummary?.status ?? 'idle'} />}
       description="Account, sync, and data safety controls should feel deliberate and audit-friendly."
       eyebrow="Operations"
       title="Settings desk"
@@ -71,6 +117,34 @@ export default function SettingsScreen() {
         <Text className="mt-2 text-sm leading-5 text-primary-foreground/75">
           Profile/default category setup: {setupStatus}
         </Text>
+      </View>
+
+      <View className="mt-5 rounded-3xl border border-border bg-card p-5">
+        <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Sync controls</Text>
+        <Text className="mt-3 text-xl font-black text-foreground">Manual Supabase sync</Text>
+        <Text className="mt-2 text-sm leading-5 text-muted">
+          Pushes pending local categories, transactions, and budgets, then pulls remote rows back into SQLite.
+        </Text>
+        <View className="mt-4 flex-row gap-3">
+          <View className="flex-1 rounded-2xl bg-background p-3">
+            <Text className="text-xs font-black uppercase tracking-[0.16em] text-muted">Pending</Text>
+            <Text className="mt-1 text-2xl font-black text-foreground">{syncSummary?.pending ?? 0}</Text>
+          </View>
+          <View className="flex-1 rounded-2xl bg-background p-3">
+            <Text className="text-xs font-black uppercase tracking-[0.16em] text-muted">Failed</Text>
+            <Text className="mt-1 text-2xl font-black text-foreground">{syncSummary?.failed ?? 0}</Text>
+          </View>
+        </View>
+        <Pressable
+          className={syncStatus === 'running' ? 'mt-4 rounded-2xl bg-muted px-4 py-3' : 'mt-4 rounded-2xl bg-foreground px-4 py-3'}
+          disabled={syncStatus === 'running'}
+          onPress={runManualSync}
+        >
+          <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-background">
+            {syncStatus === 'running' ? 'Syncing…' : 'Sync now'}
+          </Text>
+        </Pressable>
+        {syncError ? <FormError message={syncError} /> : null}
       </View>
 
       {__DEV__ ? (

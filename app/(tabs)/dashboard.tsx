@@ -7,9 +7,11 @@ import { AmountText, EmptyState, ErrorState, LoadingState, MonthPickerField, Scr
 import { getLocalDashboardSummary } from '@/src/dashboard';
 import type { DashboardSummary } from '@/src/dashboard';
 import { formatMonthLabel, formatReadableDate, toMonthKey } from '@/src/lib/date';
+import { useSyncSummary } from '@/src/sync';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const { status: syncStatus } = useSyncSummary();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(toMonthKey(new Date()));
@@ -37,8 +39,6 @@ export default function DashboardScreen() {
       loadDashboard();
     }, [loadDashboard])
   );
-
-  const syncStatus = summary?.pendingSyncCount ? 'pending' : 'idle';
 
   return (
     <Screen

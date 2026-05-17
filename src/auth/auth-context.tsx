@@ -6,6 +6,7 @@ import { initializeDatabase, seedDefaultCategories } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createLogger } from '@/src/lib/logger';
 import { supabase } from '@/src/lib/supabase';
+import { syncLocalData } from '@/src/sync/sync';
 
 const logger = createLogger('auth');
 
@@ -204,4 +205,8 @@ async function ensureAuthenticatedUserSetup(user: User) {
   );
 
   await seedDefaultCategories(db, user.id);
+
+  syncLocalData(user.id).catch((error) => {
+    logger.error('post-login sync failed', error);
+  });
 }

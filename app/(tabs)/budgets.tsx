@@ -11,11 +11,13 @@ import { deleteLocalBudget, listLocalBudgets } from '@/src/budgets';
 import type { BudgetWithUsage } from '@/src/budgets';
 import { AmountText, ConfirmationDialog, EmptyState, ErrorState, LoadingState, MonthPickerField, Screen, SyncBadge } from '@/src/components/ui';
 import { formatMonthLabel, toMonthKey } from '@/src/lib/date';
+import { useSyncSummary } from '@/src/sync';
 
 export default function BudgetsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
+  const { status: syncStatus } = useSyncSummary();
   const [budgets, setBudgets] = useState<BudgetWithUsage[]>([]);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BudgetWithUsage | null>(null);
@@ -70,7 +72,7 @@ export default function BudgetsScreen() {
   return (
     <View className="flex-1 bg-background">
       <Screen
-        action={<SyncBadge status={budgets.some((budget) => budget.sync_status === 'pending') ? 'pending' : 'idle'} />}
+        action={<SyncBadge status={syncStatus} />}
         description="Monthly category limits show pressure early, before overspending becomes a surprise."
         eyebrow="Limits"
         title="Budget pressure"

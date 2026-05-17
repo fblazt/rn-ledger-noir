@@ -2,6 +2,7 @@ import { initializeDatabase } from '@/src/db';
 import type { LocalTransaction } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createId } from '@/src/lib/id';
+import { scheduleSyncAfterLocalWrite } from '@/src/sync/auto';
 
 import type { TransactionFormInput, TransactionListFilters, TransactionWithCategory } from './types';
 
@@ -74,6 +75,8 @@ export async function createLocalTransaction(userId: string, input: TransactionF
     timestamp
   );
 
+  scheduleSyncAfterLocalWrite(userId);
+
   return getLocalTransaction(userId, id);
 }
 
@@ -108,6 +111,8 @@ export async function updateLocalTransaction(userId: string, transactionId: stri
     userId
   );
 
+  scheduleSyncAfterLocalWrite(userId);
+
   return getLocalTransaction(userId, transactionId);
 }
 
@@ -133,6 +138,8 @@ export async function deleteLocalTransaction(userId: string, transactionId: stri
     transactionId,
     userId
   );
+
+  scheduleSyncAfterLocalWrite(userId);
 }
 
 export async function getLocalTransaction(userId: string, transactionId: string) {
