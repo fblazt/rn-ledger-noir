@@ -1,4 +1,6 @@
+import { listPendingAttachmentSyncRows, markAttachmentSyncStatus, markAttachmentUploadStatus, upsertPulledAttachment } from '@/src/attachments/local';
 import { isOnline } from '@/src/lib/network';
+import { nowIso } from '@/src/lib/date';
 import { createLogger } from '@/src/lib/logger';
 
 import {
@@ -8,7 +10,7 @@ import {
   upsertPulledCategory,
   upsertPulledTransaction,
 } from './local';
-import { pullBudgets, pullCategories, pullTransactions, pushBudget, pushCategory, pushTransaction } from './remote';
+import { pullAttachments, pullBudgets, pullCategories, pullTransactions, pushAttachment, pushBudget, pushCategory, pushTransaction } from './remote';
 import type { SyncResult } from './types';
 
 const logger = createLogger('sync');
@@ -25,10 +27,12 @@ export async function syncLocalData(userId: string): Promise<SyncResult> {
   result.pushed += await pushPendingCategories(userId, result);
   result.pushed += await pushPendingTransactions(userId, result);
   result.pushed += await pushPendingBudgets(userId, result);
+  result.pushed += await pushPendingAttachments(userId, result);
 
   result.pulled += await pullRemoteCategories(userId);
   result.pulled += await pullRemoteTransactions(userId);
   result.pulled += await pullRemoteBudgets(userId);
+  result.pulled += await pullRemoteAttachments(userId);
 
   logger.info('completed', result);
 
@@ -92,6 +96,31 @@ async function pushPendingBudgets(userId: string, result: SyncResult) {
   return pushed;
 }
 
+async function pushPendingAttachments(userId: string, result: SyncResult) {
+  let pushed = 0;
+  const attachments = await listPendingAttachmentSyncRows(userId);
+
+  for (const attachment of attachments) {
+    try {
+      if (!attachment.deleted_at && attachment.upload_status !== 'uploaded') {
+        await markAttachmentUploadStatus(userId, attachment.id, 'uploading', null);
+      }
+
+      const remoteAttachment = await pushAttachment(attachment);
+      await markAttachmentUploadStatus(userId, remoteAttachment.id, 'uploaded', nowIso());
+      await markAttachmentSyncStatus(userId, remoteAttachment.id, 'synced', remoteAttachment.updated_at);
+      pushed += 1;
+    } catch (error) {
+      logger.error('attachment push failed', attachment.id, error);
+      await markAttachmentUploadStatus(userId, attachment.id, 'failed', null);
+      await markAttachmentSyncStatus(userId, attachment.id, 'failed', null);
+      result.failed += 1;
+    }
+  }
+
+  return pushed;
+}
+
 async function pullRemoteCategories(userId: string) {
   let pulled = 0;
   const categories = await pullCategories(userId);
@@ -111,6 +140,19 @@ async function pullRemoteTransactions(userId: string) {
 
   for (const transaction of transactions) {
     if (await upsertPulledTransaction(transaction)) {
+      pulled += 1;
+    }
+  }
+
+  return pulled;
+}
+
+async function pullRemoteAttachments(userId: string) {
+  let pulled = 0;
+  const attachments = await pullAttachments(userId);
+
+  for (const attachment of attachments) {
+    if (await upsertPulledAttachment(attachment)) {
       pulled += 1;
     }
   }

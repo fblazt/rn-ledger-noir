@@ -1,10 +1,17 @@
-import type { LocalBudget, LocalCategory, LocalTransaction } from '@/src/db';
+import type { LocalBudget, LocalCategory, LocalTransaction, LocalTransactionAttachment } from '@/src/db';
 import { fromRemoteBudget, toRemoteBudgetPayload } from '@/src/budgets/remote';
 import type { RemoteBudget } from '@/src/budgets/types';
 import { fromRemoteCategory, toRemoteCategoryPayload } from '@/src/categories/remote';
 import type { RemoteCategory } from '@/src/categories/types';
 import { fromRemoteTransaction, toRemoteTransactionPayload } from '@/src/transactions/remote';
 import type { RemoteTransaction } from '@/src/transactions/types';
+import {
+  fromRemoteAttachment,
+  listRemoteAttachmentsForUser,
+  toRemoteAttachmentPayload,
+  uploadReceiptFile,
+} from '@/src/attachments/remote';
+import type { RemoteTransactionAttachment } from '@/src/attachments/types';
 import { supabase } from '@/src/lib/supabase';
 
 export async function pushCategory(category: LocalCategory) {
@@ -75,6 +82,28 @@ export async function pullTransactions(userId: string) {
   }
 
   return (data as RemoteTransaction[]).map(fromRemoteTransaction);
+}
+
+export async function pushAttachment(attachment: LocalTransactionAttachment) {
+  if (!attachment.deleted_at && attachment.upload_status !== 'uploaded') {
+    await uploadReceiptFile(attachment);
+  }
+
+  const { data, error } = await supabase
+    .from('transaction_attachments')
+    .upsert(toRemoteAttachmentPayload(attachment))
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return fromRemoteAttachment(data as RemoteTransactionAttachment, attachment.local_uri);
+}
+
+export async function pullAttachments(userId: string) {
+  return (await listRemoteAttachmentsForUser(userId)).map((attachment) => fromRemoteAttachment(attachment));
 }
 
 export async function pullBudgets(userId: string) {

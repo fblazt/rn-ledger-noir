@@ -4,6 +4,7 @@ import { initializeDatabase } from '@/src/db';
 import type { LocalTransactionAttachment } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createId } from '@/src/lib/id';
+import { scheduleSyncAfterLocalWrite } from '@/src/sync/auto';
 
 import type { AttachmentSource } from './types';
 
@@ -73,6 +74,8 @@ export async function createLocalAttachment(userId: string, transactionId: strin
     timestamp
   );
 
+  scheduleSyncAfterLocalWrite(userId);
+
   return getLocalAttachment(userId, id);
 }
 
@@ -98,6 +101,113 @@ export async function deleteLocalAttachment(userId: string, attachmentId: string
     attachmentId,
     userId
   );
+
+  scheduleSyncAfterLocalWrite(userId);
+}
+
+export async function listPendingAttachmentSyncRows(userId: string) {
+  const db = await initializeDatabase();
+
+  return db.getAllAsync<LocalTransactionAttachment>(
+    `select a.*
+     from local_transaction_attachments a
+     join local_transactions t on t.id = a.transaction_id and t.user_id = a.user_id
+     where a.user_id = ?
+       and a.sync_status in ('pending', 'failed')
+       and t.sync_status = 'synced'
+     order by a.updated_at asc`,
+    userId
+  );
+}
+
+export async function markAttachmentUploadStatus(
+  userId: string,
+  attachmentId: string,
+  uploadStatus: LocalTransactionAttachment['upload_status'],
+  uploadedAt: string | null
+) {
+  const db = await initializeDatabase();
+
+  await db.runAsync(
+    `update local_transaction_attachments
+     set upload_status = ?, uploaded_at = ?
+     where id = ? and user_id = ?`,
+    uploadStatus,
+    uploadedAt,
+    attachmentId,
+    userId
+  );
+}
+
+export async function markAttachmentSyncStatus(
+  userId: string,
+  attachmentId: string,
+  syncStatus: LocalTransactionAttachment['sync_status'],
+  syncedAt: string | null
+) {
+  const db = await initializeDatabase();
+
+  await db.runAsync(
+    `update local_transaction_attachments
+     set sync_status = ?, synced_at = ?
+     where id = ? and user_id = ?`,
+    syncStatus,
+    syncedAt,
+    attachmentId,
+    userId
+  );
+}
+
+export async function upsertPulledAttachment(attachment: LocalTransactionAttachment) {
+  const db = await initializeDatabase();
+  const local = await db.getFirstAsync<LocalTransactionAttachment>(
+    'select * from local_transaction_attachments where id = ? and user_id = ?',
+    attachment.id,
+    attachment.user_id
+  );
+
+  if (local && local.sync_status !== 'synced' && Date.parse(local.updated_at) > Date.parse(attachment.updated_at)) {
+    return false;
+  }
+
+  await db.runAsync(
+    `insert into local_transaction_attachments (
+      id, user_id, transaction_id, storage_path, local_uri, file_name, mime_type, size,
+      created_at, updated_at, deleted_at, sync_status, synced_at, upload_status, uploaded_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)
+    on conflict(id) do update set
+      transaction_id = excluded.transaction_id,
+      storage_path = excluded.storage_path,
+      local_uri = case
+        when local_transaction_attachments.local_uri != '' then local_transaction_attachments.local_uri
+        else excluded.local_uri
+      end,
+      file_name = excluded.file_name,
+      mime_type = excluded.mime_type,
+      size = excluded.size,
+      updated_at = excluded.updated_at,
+      deleted_at = excluded.deleted_at,
+      sync_status = 'synced',
+      synced_at = excluded.synced_at,
+      upload_status = excluded.upload_status,
+      uploaded_at = excluded.uploaded_at`,
+    attachment.id,
+    attachment.user_id,
+    attachment.transaction_id,
+    attachment.storage_path,
+    attachment.local_uri,
+    attachment.file_name,
+    attachment.mime_type,
+    attachment.size,
+    attachment.created_at,
+    attachment.updated_at,
+    attachment.deleted_at,
+    attachment.updated_at,
+    attachment.upload_status,
+    attachment.uploaded_at
+  );
+
+  return true;
 }
 
 export async function getLocalAttachment(userId: string, attachmentId: string) {

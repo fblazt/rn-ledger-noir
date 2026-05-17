@@ -1,20 +1,22 @@
 import { initializeDatabase } from '@/src/db';
-import type { EntityType, LocalBudget, LocalCategory, LocalTransaction, SyncStatus } from '@/src/db';
+import type { EntityType, LocalBudget, LocalCategory, LocalTransaction, LocalTransactionAttachment, SyncStatus } from '@/src/db';
 
 import type { SyncSummary } from './types';
 
-type SyncableEntityType = Extract<EntityType, 'budget' | 'category' | 'transaction'>;
+type SyncableEntityType = Extract<EntityType, 'budget' | 'category' | 'transaction' | 'transaction_attachment'>;
 
 type LocalEntityMap = {
   budget: LocalBudget;
   category: LocalCategory;
   transaction: LocalTransaction;
+  transaction_attachment: LocalTransactionAttachment;
 };
 
 const tableByEntity = {
   budget: 'local_budgets',
   category: 'local_categories',
   transaction: 'local_transactions',
+  transaction_attachment: 'local_transaction_attachments',
 } satisfies Record<SyncableEntityType, string>;
 
 export async function listPendingSyncRows<T extends SyncableEntityType>(entityType: T, userId: string) {

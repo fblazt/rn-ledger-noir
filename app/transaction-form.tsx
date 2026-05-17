@@ -7,7 +7,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { createLocalAttachment, deleteLocalAttachment, listLocalAttachments } from '@/src/attachments';
+import { createLocalAttachment, createReceiptSignedUrl, deleteLocalAttachment, listLocalAttachments } from '@/src/attachments';
 import type { Attachment } from '@/src/attachments';
 import { useAuth } from '@/src/auth';
 import { listLocalCategories } from '@/src/categories';
@@ -39,6 +39,7 @@ export default function TransactionFormScreen() {
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachmentUris, setAttachmentUris] = useState<Record<string, string>>({});
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -71,6 +72,7 @@ export default function TransactionFormScreen() {
         ]);
         setCategories(categoryRows);
         setAttachments(attachmentRows);
+        await refreshAttachmentUris(attachmentRows);
 
         if (!id) {
           return;
@@ -183,7 +185,9 @@ export default function TransactionFormScreen() {
         mimeType: asset.mimeType,
         uri: asset.uri,
       });
-      setAttachments(await listLocalAttachments(user.id, id));
+      const nextAttachments = await listLocalAttachments(user.id, id);
+      setAttachments(nextAttachments);
+      await refreshAttachmentUris(nextAttachments);
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : 'Unable to attach receipt.');
     } finally {
@@ -201,10 +205,34 @@ export default function TransactionFormScreen() {
     try {
       await deleteLocalAttachment(user.id, deleteAttachmentTarget.id);
       setDeleteAttachmentTarget(null);
-      setAttachments(id ? await listLocalAttachments(user.id, id) : []);
+      const nextAttachments = id ? await listLocalAttachments(user.id, id) : [];
+      setAttachments(nextAttachments);
+      await refreshAttachmentUris(nextAttachments);
     } catch (error) {
       setDeleteAttachmentError(error instanceof Error ? error.message : 'Unable to remove receipt.');
     }
+  }
+
+  async function refreshAttachmentUris(rows: Attachment[]) {
+    const entries = await Promise.all(
+      rows.map(async (attachment) => {
+        if (attachment.local_uri) {
+          return [attachment.id, attachment.local_uri] as const;
+        }
+
+        if (!attachment.storage_path) {
+          return [attachment.id, ''] as const;
+        }
+
+        try {
+          return [attachment.id, await createReceiptSignedUrl(attachment.storage_path)] as const;
+        } catch {
+          return [attachment.id, ''] as const;
+        }
+      })
+    );
+
+    setAttachmentUris(Object.fromEntries(entries));
   }
 
   function setFormType(type: CategoryType) {
@@ -339,9 +367,15 @@ export default function TransactionFormScreen() {
                 <View key={attachment.id} className="flex-row items-center gap-3 rounded-2xl border border-border bg-card p-3">
                   <Pressable
                     className="overflow-hidden rounded-xl"
-                    onPress={() => router.push({ pathname: '/attachment-preview', params: { uri: attachment.local_uri } } as never)}
+                    onPress={() => router.push({ pathname: '/attachment-preview', params: { uri: attachmentUris[attachment.id] ?? attachment.local_uri } } as never)}
                   >
-                    <Image source={{ uri: attachment.local_uri }} style={{ height: 64, width: 64 }} contentFit="cover" />
+                    {attachmentUris[attachment.id] ? (
+                      <Image source={{ uri: attachmentUris[attachment.id] }} style={{ height: 64, width: 64 }} contentFit="cover" />
+                    ) : (
+                      <View className="h-16 w-16 items-center justify-center bg-background">
+                        <Ionicons color={iconColor} name="image-outline" size={20} />
+                      </View>
+                    )}
                   </Pressable>
                   <View className="flex-1">
                     <Text className="text-sm font-black text-foreground">Receipt photo</Text>
