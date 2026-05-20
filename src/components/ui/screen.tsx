@@ -20,18 +20,19 @@ export function Screen({ eyebrow, title, description, action, children }: Screen
         contentContainerClassName="px-5 pb-10 pt-16"
         keyboardShouldPersistTaps="handled"
       >
-        <View className="flex-row items-start justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-xs font-black uppercase tracking-[0.24em] text-stamp">{eyebrow}</Text>
-            <Text className="mt-3 text-5xl font-black leading-[52px] tracking-tight text-foreground">
-              {title}
-            </Text>
-            {description ? (
-              <Text className="mt-3 text-base leading-6 text-muted">{description}</Text>
-            ) : null}
-          </View>
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="text-xs font-black uppercase tracking-[0.24em] text-stamp">{eyebrow}</Text>
           {action}
         </View>
+        <Text
+          className="mt-3 text-5xl font-black leading-[52px] tracking-tight text-foreground ios:text-4xl ios:leading-[42px]"
+          maxFontSizeMultiplier={1.1}
+        >
+          {title}
+        </Text>
+        {description ? (
+          <Text className="mt-3 text-base leading-6 text-muted">{description}</Text>
+        ) : null}
         {children}
       </ScrollView>
     </KeyboardAvoidingView>

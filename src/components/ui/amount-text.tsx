@@ -24,7 +24,12 @@ const sizeClass = {
 
 export function AmountText({ amount, tone = 'default', size = 'md' }: AmountTextProps) {
   return (
-    <Text className={`font-mono font-black ${sizeClass[size]} ${toneClass[tone]}`}>
+    <Text
+      adjustsFontSizeToFit
+      className={`font-mono font-black ${sizeClass[size]} ${toneClass[tone]}`}
+      minimumFontScale={0.7}
+      numberOfLines={1}
+    >
       {formatIdr(amount)}
     </Text>
   );

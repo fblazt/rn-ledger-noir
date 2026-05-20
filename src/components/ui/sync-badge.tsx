@@ -21,17 +21,21 @@ const dotClass: Record<SyncBadgeStatus, string> = {
 };
 
 const label: Record<SyncBadgeStatus, string> = {
-  idle: 'All saved',
-  pending: 'Needs backup',
-  synced: 'All saved',
+  idle: 'Saved',
+  pending: 'Backup pending',
+  synced: 'Saved',
   failed: 'Backup failed',
 };
 
 export function SyncBadge({ status }: SyncBadgeProps) {
+  if (status === 'idle' || status === 'synced') {
+    return null;
+  }
+
   return (
     <View className={`flex-row items-center gap-2 rounded-full border px-3 py-2 ${badgeClass[status]}`}>
       <View className={`h-2 w-2 rounded-full ${dotClass[status]}`} />
-      <Text className="text-xs font-black uppercase tracking-[0.14em] text-foreground">
+      <Text className="text-xs font-black uppercase tracking-[0.12em] text-foreground">
         {label[status]}
       </Text>
     </View>
