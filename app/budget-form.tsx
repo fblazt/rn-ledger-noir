@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
@@ -30,7 +30,7 @@ export default function BudgetFormScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadCategoryOptions = useCallback(async () => {
+  async function loadCategoryOptions() {
     if (!user) {
       return;
     }
@@ -42,7 +42,7 @@ export default function BudgetFormScreen() {
 
     setCategories(categoryRows);
     setBudgetedCategoryIds(budgetedIds);
-  }, [form.month, id, user]);
+  }
 
   useEffect(() => {
     async function loadFormData() {
@@ -54,41 +54,42 @@ export default function BudgetFormScreen() {
       setFormError(null);
 
       try {
-        await loadCategoryOptions();
+        const [categoryRows, budgetedIds] = await Promise.all([
+          listLocalCategories(user.id, { type: 'expense' }),
+          listBudgetedCategoryIds(user.id, form.month, id),
+        ]);
 
-        if (!id) {
-          return;
+        setCategories(categoryRows);
+        setBudgetedCategoryIds(budgetedIds);
+
+        if (id) {
+          const budget = await getLocalBudget(user.id, id);
+
+          if (!budget) {
+            setFormError('Budget not found.');
+          } else {
+            setForm({
+              categoryId: budget.category_id,
+              limitAmount: String(budget.limit_amount),
+              month: budget.month,
+            });
+          }
         }
-
-        const budget = await getLocalBudget(user.id, id);
-
-        if (!budget) {
-          setFormError('Budget not found.');
-          return;
-        }
-
-        setForm({
-          categoryId: budget.category_id,
-          limitAmount: String(budget.limit_amount),
-          month: budget.month,
-        });
       } catch (error) {
         setFormError(error instanceof Error ? error.message : 'Unable to load budget.');
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     }
 
     loadFormData();
-  }, [id, loadCategoryOptions, user]);
+  }, [form.month, id, user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadCategoryOptions().catch((error) => {
-        setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
-      });
-    }, [loadCategoryOptions])
-  );
+  useFocusEffect(() => {
+    loadCategoryOptions().catch((error) => {
+      setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
+    });
+  });
 
   async function submitBudget() {
     if (!user) {
@@ -127,9 +128,9 @@ export default function BudgetFormScreen() {
       router.back();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Unable to save budget.');
-    } finally {
-      setSubmitting(false);
     }
+
+    setSubmitting(false);
   }
 
   if (loading) {
@@ -151,7 +152,7 @@ export default function BudgetFormScreen() {
       <Pressable
         accessibilityLabel="Go back"
         accessibilityRole="button"
-        className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+        className="mt-7 size-11 items-center justify-center rounded-full border border-border bg-card"
         onPress={() => router.back()}
       >
         <Text className="text-xl font-black text-foreground">←</Text>
@@ -224,7 +225,7 @@ export default function BudgetFormScreen() {
         {formError ? <FormError message={formError} /> : null}
 
         <Pressable
-          className={submitting ? 'mt-6 rounded-2xl bg-muted px-4 py-4' : 'mt-6 rounded-2xl bg-primary px-4 py-4'}
+          className={submitting ? 'mt-6 rounded-2xl bg-muted p-4' : 'mt-6 rounded-2xl bg-primary p-4'}
           accessibilityLabel={id ? 'Save budget changes' : 'Add budget'}
           accessibilityRole="button"
           accessibilityState={{ disabled: submitting }}

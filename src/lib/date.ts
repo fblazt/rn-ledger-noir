@@ -1,3 +1,16 @@
+const readableDateFormatter = new Intl.DateTimeFormat('en', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+  year: 'numeric',
+});
+
+const monthLabelFormatter = new Intl.DateTimeFormat('en', {
+  month: 'long',
+  timeZone: 'UTC',
+  year: 'numeric',
+});
+
 export function toIsoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -17,12 +30,7 @@ export function formatReadableDate(dateValue: string) {
     return dateValue;
   }
 
-  return new Intl.DateTimeFormat('en', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-    year: 'numeric',
-  }).format(date);
+  return readableDateFormatter.format(date);
 }
 
 export function formatMonthLabel(monthValue: string) {
@@ -32,9 +40,5 @@ export function formatMonthLabel(monthValue: string) {
     return monthValue;
   }
 
-  return new Intl.DateTimeFormat('en', {
-    month: 'long',
-    timeZone: 'UTC',
-    year: 'numeric',
-  }).format(date);
+  return monthLabelFormatter.format(date);
 }

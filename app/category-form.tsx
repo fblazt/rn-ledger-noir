@@ -46,25 +46,21 @@ export default function CategoryFormScreen() {
 
         if (!category) {
           setFormError('Category not found.');
-          return;
-        }
-
-        if (category.is_default === 1) {
+        } else if (category.is_default === 1) {
           setFormError('Default categories are read-only.');
-          return;
+        } else {
+          setForm({
+            color: category.color ?? CATEGORY_COLORS[0],
+            icon: category.icon ?? 'tag',
+            name: category.name,
+            type: category.type,
+          });
         }
-
-        setForm({
-          color: category.color ?? CATEGORY_COLORS[0],
-          icon: category.icon ?? 'tag',
-          name: category.name,
-          type: category.type,
-        });
       } catch (error) {
         setFormError(error instanceof Error ? error.message : 'Unable to load category.');
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     }
 
     loadCategory();
@@ -107,9 +103,9 @@ export default function CategoryFormScreen() {
       router.back();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Unable to save category.');
-    } finally {
-      setSubmitting(false);
     }
+
+    setSubmitting(false);
   }
 
   if (loading) {
@@ -131,7 +127,7 @@ export default function CategoryFormScreen() {
       <Pressable
         accessibilityLabel="Go back"
         accessibilityRole="button"
-        className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+        className="mt-7 size-11 items-center justify-center rounded-full border border-border bg-card"
         onPress={() => router.back()}
       >
         <Text className="text-xl font-black text-foreground">←</Text>
@@ -169,7 +165,7 @@ export default function CategoryFormScreen() {
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Name</Text>
         <TextInput
           accessibilityLabel="Category name"
-          className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
+          className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
           onChangeText={(name) => setForm((current) => ({ ...current, name }))}
           placeholder="Coffee, Freelance, Parking…"
           placeholderTextColorClassName="accent-muted"
@@ -182,7 +178,7 @@ export default function CategoryFormScreen() {
         <TextInput
           accessibilityLabel="Category icon label"
           autoCapitalize="none"
-          className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
+          className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
           onChangeText={(icon) => setForm((current) => ({ ...current, icon }))}
           placeholder="tag"
           placeholderTextColorClassName="accent-muted"
@@ -198,8 +194,8 @@ export default function CategoryFormScreen() {
               key={color}
               className={
                 form.color === color
-                  ? 'h-11 w-11 rounded-full border-4 border-foreground'
-                  : 'h-11 w-11 rounded-full border border-border'
+                  ? 'size-11 rounded-full border-4 border-foreground'
+                  : 'size-11 rounded-full border border-border'
               }
               accessibilityLabel={`Choose category color ${color}`}
               accessibilityRole="button"
@@ -214,7 +210,7 @@ export default function CategoryFormScreen() {
         {formError ? <FormError message={formError} /> : null}
 
         <Pressable
-          className={submitting ? 'mt-6 rounded-2xl bg-muted px-4 py-4' : 'mt-6 rounded-2xl bg-primary px-4 py-4'}
+          className={submitting ? 'mt-6 rounded-2xl bg-muted p-4' : 'mt-6 rounded-2xl bg-primary p-4'}
           accessibilityLabel={id ? 'Save category changes' : 'Create category'}
           accessibilityRole="button"
           accessibilityState={{ disabled: submitting }}

@@ -1,6 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js';
 import type { ReactNode } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, use, useEffect, useReducer, useState } from 'react';
 
 import { initializeDatabase, seedDefaultCategories } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
@@ -26,9 +26,18 @@ type AuthProviderProps = {
   children: ReactNode;
 };
 
+type AuthState = {
+  loading: boolean;
+  session: Session | null;
+};
+
+function authStateReducer(_state: AuthState, nextState: AuthState) {
+  return nextState;
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<Session | null>(null);
+  const [authState, dispatchAuthState] = useReducer(authStateReducer, { loading: true, session: null });
+  const { loading, session } = authState;
   const [setupStatus, setSetupStatus] = useState<AuthContextValue['setupStatus']>('idle');
 
   useEffect(() => {
@@ -36,14 +45,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     restoreStoredSession().then((restoredSession) => {
       if (mounted) {
-        setSession(restoredSession);
-        setLoading(false);
+        dispatchAuthState({ loading: false, session: restoredSession });
       }
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setLoading(false);
+      dispatchAuthState({ loading: false, session: nextSession });
     });
 
     return () => {
@@ -54,42 +61,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     if (!session?.user) {
-      setSetupStatus('idle');
       return;
     }
 
     let cancelled = false;
 
-    setSetupStatus('running');
-    ensureAuthenticatedUserSetup(session.user)
-      .then(() => {
+    async function prepareAuthenticatedUser(user: User) {
+      setSetupStatus('running');
+
+      try {
+        await ensureAuthenticatedUserSetup(user);
+
         if (!cancelled) {
           setSetupStatus('ready');
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         logger.error('failed to prepare authenticated user', error);
         if (!cancelled) {
           setSetupStatus('failed');
         }
-      });
+      }
+    }
+
+    prepareAuthenticatedUser(session.user);
 
     return () => {
       cancelled = true;
     };
   }, [session?.user]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  async function signIn(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
 
     if (error) {
       throw error;
     }
 
-    setSession(data.session);
-  }, []);
+    dispatchAuthState({ loading: false, session: data.session });
+  }
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  async function signUp(email: string, password: string) {
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
 
     if (error) {
@@ -100,35 +111,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error('Account created. Confirm your email before logging in.');
     }
 
-    setSession(data.session);
-  }, []);
+    dispatchAuthState({ loading: false, session: data.session });
+  }
 
-  const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      throw error;
-    }
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      loading,
-      session,
-      setupStatus,
-      signIn,
-      signOut,
-      signUp,
-      user: session?.user ?? null,
-    }),
-    [loading, session, setupStatus, signIn, signOut, signUp]
-  );
+  const value = {
+    loading,
+    session,
+    setupStatus: session?.user ? setupStatus : 'idle',
+    signIn,
+    signOut: signOutUser,
+    signUp,
+    user: session?.user ?? null,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
+  const context = use(AuthContext);
 
   if (!context) {
     throw new Error('useAuth must be used inside AuthProvider');
@@ -137,22 +137,31 @@ export function useAuth() {
   return context;
 }
 
+async function signOutUser() {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function restoreStoredSession() {
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const { data, error } = await supabase.auth.getSession();
+  return restoreStoredSessionAttempt(1);
+}
 
-    if (error) {
-      logger.error('failed to restore session', error);
-    }
+async function restoreStoredSessionAttempt(attempt: number): Promise<Session | null> {
+  const { data, error } = await supabase.auth.getSession();
 
-    if (data.session || attempt === 3) {
-      return data.session;
-    }
-
-    await delay(250);
+  if (error) {
+    logger.error('failed to restore session', error);
   }
 
-  return null;
+  if (data.session || attempt === 3) {
+    return data.session;
+  }
+
+  await delay(250);
+  return restoreStoredSessionAttempt(attempt + 1);
 }
 
 function delay(milliseconds: number) {

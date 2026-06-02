@@ -1,6 +1,4 @@
 import type { LocalTransaction } from '@/src/db';
-import { supabase } from '@/src/lib/supabase';
-
 import type { RemoteTransaction, RemoteTransactionPayload } from './types';
 
 export function toRemoteTransactionPayload(transaction: LocalTransaction): RemoteTransactionPayload {
@@ -35,38 +33,3 @@ export function fromRemoteTransaction(transaction: RemoteTransaction): LocalTran
   };
 }
 
-export async function listRemoteTransactions(userId: string, month: string) {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .gte('transaction_date', `${month}-01`)
-    .lt('transaction_date', nextMonthStart(month))
-    .order('transaction_date', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteTransaction[];
-}
-
-export async function upsertRemoteTransaction(transaction: LocalTransaction) {
-  const { data, error } = await supabase
-    .from('transactions')
-    .upsert(toRemoteTransactionPayload(transaction))
-    .select('*')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteTransaction;
-}
-
-function nextMonthStart(month: string) {
-  const [year, monthNumber] = month.split('-').map(Number);
-  return new Date(Date.UTC(year, monthNumber, 1)).toISOString().slice(0, 10);
-}

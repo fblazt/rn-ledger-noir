@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -68,12 +68,31 @@ export default function TransactionFormScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const formCategories = useMemo(
-    () => categories.filter((category) => category.type === form.type),
-    [categories, form.type]
-  );
+  const formCategories = categories.filter((category) => category.type === form.type);
 
-  const loadSupportingData = useCallback(async () => {
+  async function refreshAttachmentUris(rows: Attachment[]) {
+    const entries = await Promise.all(
+      rows.map(async (attachment) => {
+        if (attachment.local_uri) {
+          return [attachment.id, attachment.local_uri] as const;
+        }
+
+        if (!attachment.storage_path) {
+          return [attachment.id, ''] as const;
+        }
+
+        try {
+          return [attachment.id, await createReceiptSignedUrl(attachment.storage_path)] as const;
+        } catch {
+          return [attachment.id, ''] as const;
+        }
+      })
+    );
+
+    setAttachmentUris(Object.fromEntries(entries));
+  }
+
+  async function loadSupportingData() {
     if (!user) {
       return;
     }
@@ -86,7 +105,7 @@ export default function TransactionFormScreen() {
     setCategories(categoryRows);
     setAttachments(attachmentRows);
     await refreshAttachmentUris(attachmentRows);
-  }, [id, user]);
+  }
 
   useEffect(() => {
     async function loadFormData() {
@@ -98,43 +117,45 @@ export default function TransactionFormScreen() {
       setFormError(null);
 
       try {
-        await loadSupportingData();
+        const [categoryRows, attachmentRows] = await Promise.all([
+          listLocalCategories(user.id),
+          id ? listLocalAttachments(user.id, id) : Promise.resolve([]),
+        ]);
 
-        if (!id) {
-          return;
+        setCategories(categoryRows);
+        setAttachments(attachmentRows);
+        await refreshAttachmentUris(attachmentRows);
+
+        if (id) {
+          const transaction = await getLocalTransaction(user.id, id);
+
+          if (!transaction) {
+            setFormError('Transaction not found.');
+          } else {
+            setForm({
+              amount: String(transaction.amount),
+              categoryId: transaction.category_id,
+              note: transaction.note ?? '',
+              transactionDate: transaction.transaction_date,
+              type: transaction.type,
+            });
+          }
         }
-
-        const transaction = await getLocalTransaction(user.id, id);
-
-        if (!transaction) {
-          setFormError('Transaction not found.');
-          return;
-        }
-
-        setForm({
-          amount: String(transaction.amount),
-          categoryId: transaction.category_id,
-          note: transaction.note ?? '',
-          transactionDate: transaction.transaction_date,
-          type: transaction.type,
-        });
       } catch (error) {
         setFormError(error instanceof Error ? error.message : 'Unable to load transaction.');
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     }
 
     loadFormData();
-  }, [id, loadSupportingData, user]);
+  }, [id, user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadSupportingData().catch((error) => {
-        setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
-      });
-    }, [loadSupportingData])
-  );
+  useFocusEffect(() => {
+    loadSupportingData().catch((error) => {
+      setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
+    });
+  });
 
   async function submitTransaction() {
     if (!user) {
@@ -180,9 +201,9 @@ export default function TransactionFormScreen() {
       router.back();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Unable to save transaction.');
-    } finally {
-      setSubmitting(false);
     }
+
+    setSubmitting(false);
   }
 
   async function addAttachment(source: 'camera' | 'library') {
@@ -201,32 +222,29 @@ export default function TransactionFormScreen() {
 
       if (!permission.granted) {
         setAttachmentError(source === 'camera' ? 'Camera permission is needed to take a receipt photo.' : 'Photo library permission is needed to attach a receipt.');
-        return;
+      } else {
+        const result = source === 'camera'
+          ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
+          : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+
+        if (!result.canceled) {
+          const asset = result.assets[0];
+          await createLocalAttachment(user.id, id, {
+            fileName: asset.fileName,
+            fileSize: asset.fileSize,
+            mimeType: asset.mimeType,
+            uri: asset.uri,
+          });
+          const nextAttachments = await listLocalAttachments(user.id, id);
+          setAttachments(nextAttachments);
+          await refreshAttachmentUris(nextAttachments);
+        }
       }
-
-      const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-
-      if (result.canceled) {
-        return;
-      }
-
-      const asset = result.assets[0];
-      await createLocalAttachment(user.id, id, {
-        fileName: asset.fileName,
-        fileSize: asset.fileSize,
-        mimeType: asset.mimeType,
-        uri: asset.uri,
-      });
-      const nextAttachments = await listLocalAttachments(user.id, id);
-      setAttachments(nextAttachments);
-      await refreshAttachmentUris(nextAttachments);
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : 'Unable to attach receipt.');
-    } finally {
-      setAttachmentLoading(false);
     }
+
+    setAttachmentLoading(false);
   }
 
   async function confirmDeleteAttachment() {
@@ -247,27 +265,6 @@ export default function TransactionFormScreen() {
     }
   }
 
-  async function refreshAttachmentUris(rows: Attachment[]) {
-    const entries = await Promise.all(
-      rows.map(async (attachment) => {
-        if (attachment.local_uri) {
-          return [attachment.id, attachment.local_uri] as const;
-        }
-
-        if (!attachment.storage_path) {
-          return [attachment.id, ''] as const;
-        }
-
-        try {
-          return [attachment.id, await createReceiptSignedUrl(attachment.storage_path)] as const;
-        } catch {
-          return [attachment.id, ''] as const;
-        }
-      })
-    );
-
-    setAttachmentUris(Object.fromEntries(entries));
-  }
 
   function setFormType(type: CategoryType) {
     setForm((current) => ({ ...current, categoryId: '', type }));
@@ -292,7 +289,7 @@ export default function TransactionFormScreen() {
       <Pressable
         accessibilityLabel="Go back"
         accessibilityRole="button"
-        className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+        className="mt-7 size-11 items-center justify-center rounded-full border border-border bg-card"
         onPress={() => router.back()}
       >
         <Text className="text-xl font-black text-foreground">←</Text>
@@ -384,7 +381,7 @@ export default function TransactionFormScreen() {
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Note</Text>
         <TextInput
           accessibilityLabel="Transaction note"
-          className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
+          className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
           onChangeText={(note) => setForm((current) => ({ ...current, note }))}
           placeholder="Optional memo"
           placeholderTextColorClassName="accent-muted"
@@ -403,7 +400,7 @@ export default function TransactionFormScreen() {
             </View>
             <View className="flex-row gap-2">
               <Pressable
-                className={id && !attachmentLoading ? 'h-11 w-11 items-center justify-center rounded-full bg-card' : 'h-11 w-11 items-center justify-center rounded-full bg-border opacity-60'}
+                className={id && !attachmentLoading ? 'size-11 items-center justify-center rounded-full bg-card' : 'size-11 items-center justify-center rounded-full bg-border opacity-60'}
                 accessibilityLabel="Take receipt photo"
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !id || attachmentLoading }}
@@ -413,7 +410,7 @@ export default function TransactionFormScreen() {
                 <Ionicons color={iconColor} name="camera-outline" size={20} />
               </Pressable>
               <Pressable
-                className={id && !attachmentLoading ? 'h-11 w-11 items-center justify-center rounded-full bg-card' : 'h-11 w-11 items-center justify-center rounded-full bg-border opacity-60'}
+                className={id && !attachmentLoading ? 'size-11 items-center justify-center rounded-full bg-card' : 'size-11 items-center justify-center rounded-full bg-border opacity-60'}
                 accessibilityLabel="Attach receipt from photo library"
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !id || attachmentLoading }}
@@ -440,7 +437,7 @@ export default function TransactionFormScreen() {
                     {attachmentUris[attachment.id] ? (
                       <Image source={{ uri: attachmentUris[attachment.id] }} style={{ height: 64, width: 64 }} contentFit="cover" />
                     ) : (
-                      <View className="h-16 w-16 items-center justify-center bg-background">
+                      <View className="size-16 items-center justify-center bg-background">
                         <Ionicons color={iconColor} name="image-outline" size={20} />
                       </View>
                     )}
@@ -454,7 +451,7 @@ export default function TransactionFormScreen() {
                   <Pressable
                     accessibilityLabel="Remove receipt photo"
                     accessibilityRole="button"
-                    className="h-10 w-10 items-center justify-center rounded-full bg-danger"
+                    className="size-10 items-center justify-center rounded-full bg-danger"
                     onPress={() => {
                       setDeleteAttachmentError(null);
                       setDeleteAttachmentTarget(attachment);
@@ -471,7 +468,7 @@ export default function TransactionFormScreen() {
         {formError ? <FormError message={formError} /> : null}
 
         <Pressable
-          className={submitting ? 'mt-6 rounded-2xl bg-muted px-4 py-4' : 'mt-6 rounded-2xl bg-primary px-4 py-4'}
+          className={submitting ? 'mt-6 rounded-2xl bg-muted p-4' : 'mt-6 rounded-2xl bg-primary p-4'}
           accessibilityLabel={id ? 'Save transaction changes' : 'Add transaction'}
           accessibilityRole="button"
           accessibilityState={{ disabled: submitting }}

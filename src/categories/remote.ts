@@ -1,6 +1,4 @@
 import type { LocalCategory } from '@/src/db';
-import { supabase } from '@/src/lib/supabase';
-
 import type { RemoteCategory, RemoteCategoryPayload } from './types';
 
 export function toRemoteCategoryPayload(category: LocalCategory): RemoteCategoryPayload {
@@ -35,32 +33,3 @@ export function fromRemoteCategory(category: RemoteCategory): LocalCategory {
   };
 }
 
-export async function listRemoteCategories(userId: string) {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .order('type', { ascending: true })
-    .order('name', { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteCategory[];
-}
-
-export async function upsertRemoteCategory(category: LocalCategory) {
-  const { data, error } = await supabase
-    .from('categories')
-    .upsert(toRemoteCategoryPayload(category))
-    .select('*')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteCategory;
-}

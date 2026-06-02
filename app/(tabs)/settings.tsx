@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
@@ -28,16 +28,14 @@ export default function SettingsScreen() {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'synced' | 'failed'>('idle');
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!user) {
-        setSyncSummary(null);
-        return;
-      }
+  useFocusEffect(() => {
+    if (!user) {
+      setSyncSummary(null);
+      return;
+    }
 
-      refreshSyncSummary(user.id);
-    }, [user])
-  );
+    refreshSyncSummary(user.id);
+  });
 
   async function submitLogout() {
     setLogoutStatus('running');

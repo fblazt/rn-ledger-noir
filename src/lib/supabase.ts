@@ -54,12 +54,12 @@ const secureStorage = {
     );
   },
   async setItem(key: string, value: string) {
-    await this.removeItem(key);
-
     if (value.length <= SECURE_STORE_CHUNK_SIZE) {
       await SecureStore.setItemAsync(key, value);
       return;
     }
+
+    await this.removeItem(key);
 
     const chunks = splitIntoChunks(value, SECURE_STORE_CHUNK_SIZE);
 

@@ -35,9 +35,9 @@ export default function LoginScreen() {
       router.replace('/(tabs)/dashboard');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to log in.');
-    } finally {
-      setSubmitting(false);
     }
+
+    setSubmitting(false);
   }
 
   return (
@@ -51,7 +51,7 @@ export default function LoginScreen() {
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
-          className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
+          className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
           keyboardType="email-address"
           onChangeText={setEmail}
           placeholder="you@example.com"
@@ -62,7 +62,7 @@ export default function LoginScreen() {
 
         <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Password</Text>
         <TextInput
-          className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
+          className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
           onChangeText={setPassword}
           onSubmitEditing={submitLogin}
           placeholder="••••••••"
@@ -83,8 +83,8 @@ export default function LoginScreen() {
         <Pressable
           className={
             submitting
-              ? 'mt-6 rounded-2xl bg-muted px-4 py-4'
-              : 'mt-6 rounded-2xl bg-primary px-4 py-4'
+              ? 'mt-6 rounded-2xl bg-muted p-4'
+              : 'mt-6 rounded-2xl bg-primary p-4'
           }
           disabled={submitting}
           onPress={submitLogin}
@@ -95,8 +95,10 @@ export default function LoginScreen() {
         </Pressable>
       </View>
 
-      <Link href="/(auth)/register" className="mt-6 text-center text-base font-black text-primary">
-        Need an account? Register
+      <Link href="/(auth)/register" asChild>
+        <Pressable className="mt-6">
+          <Text className="text-center text-base font-black text-primary">Need an account? Register</Text>
+        </Pressable>
       </Link>
     </Screen>
   );

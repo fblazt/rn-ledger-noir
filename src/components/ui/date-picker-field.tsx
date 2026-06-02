@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import DateTimePicker, { type DateType, useDefaultStyles } from 'react-native-ui-datepicker';
 
@@ -38,7 +38,7 @@ export function DatePickerField({ onChange, value }: DatePickerFieldProps) {
 
   return (
     <View>
-      <Pressable className="mt-3 rounded-2xl border border-border bg-background px-4 py-4" onPress={() => setVisible(true)}>
+      <Pressable className="mt-3 rounded-2xl border border-border bg-background p-4" onPress={() => setVisible(true)}>
         <Text className="text-base font-bold text-foreground">{formatReadableDate(value)}</Text>
       </Pressable>
 
@@ -59,9 +59,8 @@ export function MonthPickerField({ compact = false, onChange, value }: MonthPick
   const colorScheme = useColorScheme() ?? 'light';
   const iconColor = Colors[colorScheme].text;
   const [visible, setVisible] = useState(false);
-  const initialDate = useMemo(() => parseFieldDate(`${value}-01`), [value]);
-  const [month, setMonth] = useState(initialDate.getUTCMonth());
-  const [year, setYear] = useState(initialDate.getUTCFullYear());
+  const [month, setMonth] = useState(() => parseFieldDate(`${value}-01`).getUTCMonth());
+  const [year, setYear] = useState(() => parseFieldDate(`${value}-01`).getUTCFullYear());
 
   function openPicker() {
     const date = parseFieldDate(`${value}-01`);
@@ -130,7 +129,7 @@ export function MonthPickerField({ compact = false, onChange, value }: MonthPick
           ))}
         </View>
 
-        <Pressable className="mt-5 rounded-2xl bg-primary px-4 py-4" onPress={submitMonth}>
+        <Pressable className="mt-5 rounded-2xl bg-primary p-4" onPress={submitMonth}>
           <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-primary-foreground">
             Apply month
           </Text>
@@ -154,7 +153,7 @@ function PickerModal({ children, onClose, title, visible }: PickerModalProps) {
         <Pressable className="rounded-[32px] border border-border bg-card p-5" onPress={(event) => event.stopPropagation()}>
           <Text className="font-mono text-xs font-black uppercase tracking-[0.18em] text-stamp">{title}</Text>
           <View className="mt-5">{children}</View>
-          <Pressable className="mt-5 rounded-2xl border border-border bg-background px-4 py-4" onPress={onClose}>
+          <Pressable className="mt-5 rounded-2xl border border-border bg-background p-4" onPress={onClose}>
             <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-foreground">Cancel</Text>
           </Pressable>
         </Pressable>

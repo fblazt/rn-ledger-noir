@@ -22,6 +22,12 @@ const sizeClass = {
   lg: 'text-5xl',
 };
 
+const idrFormatter = new Intl.NumberFormat('id-ID', {
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+  style: 'currency',
+});
+
 export function AmountText({ amount, tone = 'default', size = 'md' }: AmountTextProps) {
   return (
     <Text
@@ -36,9 +42,5 @@ export function AmountText({ amount, tone = 'default', size = 'md' }: AmountText
 }
 
 function formatIdr(amount: number) {
-  return new Intl.NumberFormat('id-ID', {
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-    style: 'currency',
-  }).format(amount);
+  return idrFormatter.format(amount);
 }

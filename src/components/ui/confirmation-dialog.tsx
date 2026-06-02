@@ -41,7 +41,7 @@ export function ConfirmationDialog({
           ) : null}
 
           <View className="mt-6 flex-row gap-3">
-            <Pressable className="flex-1 rounded-2xl border border-border bg-background px-4 py-4" onPress={onCancel}>
+            <Pressable className="flex-1 rounded-2xl border border-border bg-background p-4" onPress={onCancel}>
               <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-foreground">
                 Cancel
               </Text>
@@ -49,8 +49,8 @@ export function ConfirmationDialog({
             <Pressable
               className={
                 danger
-                  ? 'flex-1 rounded-2xl bg-danger px-4 py-4'
-                  : 'flex-1 rounded-2xl bg-primary px-4 py-4'
+                  ? 'flex-1 rounded-2xl bg-danger p-4'
+                  : 'flex-1 rounded-2xl bg-primary p-4'
               }
               onPress={onConfirm}
             >

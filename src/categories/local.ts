@@ -144,7 +144,7 @@ export async function deleteLocalCategory(userId: string, categoryId: string) {
   scheduleSyncAfterLocalWrite(userId);
 }
 
-export async function getActiveCategoryCount(userId: string, type: TransactionType) {
+async function getActiveCategoryCount(userId: string, type: TransactionType) {
   const db = await initializeDatabase();
   const row = await db.getFirstAsync<{ count: number }>(
     `select count(*) as count

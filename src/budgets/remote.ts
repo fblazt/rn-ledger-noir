@@ -1,6 +1,4 @@
 import type { LocalBudget } from '@/src/db';
-import { supabase } from '@/src/lib/supabase';
-
 import type { RemoteBudget, RemoteBudgetPayload } from './types';
 
 export function toRemoteBudgetPayload(budget: LocalBudget): RemoteBudgetPayload {
@@ -31,32 +29,3 @@ export function fromRemoteBudget(budget: RemoteBudget): LocalBudget {
   };
 }
 
-export async function listRemoteBudgets(userId: string, month: string) {
-  const { data, error } = await supabase
-    .from('budgets')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('month', month)
-    .is('deleted_at', null)
-    .order('updated_at', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteBudget[];
-}
-
-export async function upsertRemoteBudget(budget: LocalBudget) {
-  const { data, error } = await supabase
-    .from('budgets')
-    .upsert(toRemoteBudgetPayload(budget))
-    .select('*')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteBudget;
-}

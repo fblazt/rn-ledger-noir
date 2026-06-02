@@ -1,6 +1,5 @@
 export { getDatabase, initializeDatabase } from './database';
 export {
-  DEFAULT_CATEGORY_TEMPLATES,
   listDefaultCategories,
   seedDefaultCategories,
   type DefaultCategoryTemplate,

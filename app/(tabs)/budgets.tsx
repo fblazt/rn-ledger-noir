@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -35,9 +35,9 @@ export default function BudgetsScreen() {
   const [deleteTarget, setDeleteTarget] = useState<BudgetWithUsage | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(toMonthKey(new Date()));
+  const [month, setMonth] = useState(() => toMonthKey(new Date()));
 
-  const loadBudgets = useCallback(async () => {
+  async function loadBudgets() {
     if (!user) {
       return;
     }
@@ -49,16 +49,14 @@ export default function BudgetsScreen() {
       setBudgets(await listLocalBudgets(user.id, month));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load budgets.');
-    } finally {
-      setLoading(false);
     }
-  }, [month, user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadBudgets();
-    }, [loadBudgets])
-  );
+    setLoading(false);
+  }
+
+  useFocusEffect(() => {
+    loadBudgets();
+  });
 
   async function confirmDelete() {
     if (!user || !deleteTarget) {
@@ -149,13 +147,21 @@ type BudgetCardProps = {
   onDelete: () => void;
 };
 
+const standardIdrFormatter = new Intl.NumberFormat('id-ID', {
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+  style: 'currency',
+});
+
+const compactIdrFormatter = new Intl.NumberFormat('id-ID', {
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+  notation: 'compact',
+  style: 'currency',
+});
+
 function formatBudgetAmount(amount: number) {
-  return new Intl.NumberFormat('id-ID', {
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-    notation: Math.abs(amount) >= 1_000_000 ? 'compact' : 'standard',
-    style: 'currency',
-  }).format(amount);
+  return (Math.abs(amount) >= 1_000_000 ? compactIdrFormatter : standardIdrFormatter).format(amount);
 }
 
 function BudgetCard({ budget, onDelete }: BudgetCardProps) {
@@ -172,7 +178,7 @@ function BudgetCard({ budget, onDelete }: BudgetCardProps) {
       <View className="flex-row items-start justify-between gap-4">
         <View className="flex-1">
           <View className="flex-row items-center gap-3">
-            <View className="h-4 w-4 rounded-full" style={{ backgroundColor: budget.category_color ?? '#73706A' }} />
+            <View className="size-4 rounded-full" style={{ backgroundColor: budget.category_color ?? '#73706A' }} />
             <Text className="text-xl font-black text-foreground">{budget.category_name}</Text>
           </View>
           <Text className="mt-2 text-sm font-bold uppercase tracking-[0.16em] text-muted">

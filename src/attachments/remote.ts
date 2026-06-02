@@ -93,32 +93,3 @@ export async function listRemoteAttachmentsForUser(userId: string) {
   return data as RemoteTransactionAttachment[];
 }
 
-export async function listRemoteAttachments(userId: string, transactionId: string) {
-  const { data, error } = await supabase
-    .from('transaction_attachments')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('transaction_id', transactionId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteTransactionAttachment[];
-}
-
-export async function upsertRemoteAttachment(attachment: LocalTransactionAttachment) {
-  const { data, error } = await supabase
-    .from('transaction_attachments')
-    .upsert(toRemoteAttachmentPayload(attachment))
-    .select('*')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data as RemoteTransactionAttachment;
-}

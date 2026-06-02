@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
@@ -14,10 +14,10 @@ export default function DashboardScreen() {
   const { status: syncStatus } = useSyncSummary();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(toMonthKey(new Date()));
+  const [month, setMonth] = useState(() => toMonthKey(new Date()));
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
 
-  const loadDashboard = useCallback(async () => {
+  async function loadDashboard() {
     if (!user) {
       return;
     }
@@ -29,16 +29,14 @@ export default function DashboardScreen() {
       setSummary(await getLocalDashboardSummary(user.id, month));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load dashboard.');
-    } finally {
-      setLoading(false);
     }
-  }, [month, user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboard();
-    }, [loadDashboard])
-  );
+    setLoading(false);
+  }
+
+  useFocusEffect(() => {
+    loadDashboard();
+  });
 
   return (
     <Screen
@@ -92,21 +90,29 @@ function formatSyncStatus(status: DashboardSummary['recentTransactions'][number]
   return '';
 }
 
+const standardIdrFormatter = new Intl.NumberFormat('id-ID', {
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+  style: 'currency',
+});
+
+const compactIdrFormatter = new Intl.NumberFormat('id-ID', {
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+  notation: 'compact',
+  style: 'currency',
+});
+
 function formatCompactAmount(amount: number) {
-  return new Intl.NumberFormat('id-ID', {
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-    notation: amount >= 1_000_000 ? 'compact' : 'standard',
-    style: 'currency',
-  }).format(amount);
+  return (amount >= 1_000_000 ? compactIdrFormatter : standardIdrFormatter).format(amount);
 }
 
 function DashboardContent({ summary }: DashboardContentProps) {
   return (
     <>
       <View className="mt-8 overflow-hidden rounded-[32px] bg-primary p-6">
-        <View className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-stamp/30" />
-        <View className="absolute -bottom-12 left-8 h-28 w-28 rounded-full bg-success/20" />
+        <View className="absolute -right-10 -top-10 size-36 rounded-full bg-stamp/30" />
+        <View className="absolute -bottom-12 left-8 size-28 rounded-full bg-success/20" />
         <Text className="text-xs font-bold uppercase tracking-[0.22em] text-primary-foreground/70">Current balance</Text>
         <View className="mt-4">
           <AmountText amount={summary.balance} size="lg" tone="inverse" />
@@ -137,7 +143,7 @@ function DashboardContent({ summary }: DashboardContentProps) {
           <View className="mt-4 flex-row items-center justify-between gap-4">
             <View className="flex-1 flex-row items-center gap-3">
               <View
-                className="h-4 w-4 rounded-full"
+                className="size-4 rounded-full"
                 style={{ backgroundColor: summary.topSpendingCategory.categoryColor ?? '#73706A' }}
               />
               <Text className="flex-1 text-lg font-black text-foreground">{summary.topSpendingCategory.categoryName}</Text>

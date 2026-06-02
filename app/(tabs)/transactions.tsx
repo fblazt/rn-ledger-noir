@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -46,22 +46,18 @@ export default function TransactionsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(toMonthKey(new Date()));
+  const [month, setMonth] = useState(() => toMonthKey(new Date()));
   const [query, setQuery] = useState('');
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
   const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>('all');
 
-  const filterCategories = useMemo(() => {
-    if (typeFilter === 'all') {
-      return categories;
-    }
-
-    return categories.filter((category) => category.type === typeFilter);
-  }, [categories, typeFilter]);
+  const filterCategories = typeFilter === 'all'
+    ? categories
+    : categories.filter((category) => category.type === typeFilter);
 
   const activeFilterCount = Number(typeFilter !== 'all') + Number(Boolean(categoryFilterId));
 
-  const loadScreenData = useCallback(async () => {
+  async function loadScreenData() {
     if (!user) {
       return;
     }
@@ -84,22 +80,14 @@ export default function TransactionsScreen() {
       setTransactions(transactionRows);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load transactions.');
-    } finally {
-      setLoading(false);
     }
-  }, [categoryFilterId, month, query, typeFilter, user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadScreenData();
-    }, [loadScreenData])
-  );
+    setLoading(false);
+  }
 
-  useEffect(() => {
-    if (categoryFilterId && !filterCategories.some((category) => category.id === categoryFilterId)) {
-      setCategoryFilterId('');
-    }
-  }, [categoryFilterId, filterCategories]);
+  useFocusEffect(() => {
+    loadScreenData();
+  });
 
   async function confirmDelete() {
     if (!user || !deleteTarget) {
@@ -153,7 +141,7 @@ export default function TransactionsScreen() {
           />
           <MonthPickerField compact value={month} onChange={setMonth} />
           <Pressable
-            className="h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card"
+            className="size-12 items-center justify-center rounded-2xl border border-border bg-card"
             onPress={() => setFilterVisible(true)}
           >
             <Ionicons color={iconColor} name={activeFilterCount > 0 ? 'filter' : 'filter-outline'} size={20} />
@@ -180,7 +168,7 @@ export default function TransactionsScreen() {
                 <View className="flex-1">
                   <View className="flex-row items-center gap-3">
                     <View
-                      className="h-4 w-4 rounded-full"
+                      className="size-4 rounded-full"
                       style={{ backgroundColor: transaction.category_color ?? '#73706A' }}
                     />
                     <Text className="text-xl font-black text-foreground">{transaction.category_name}</Text>
@@ -345,10 +333,10 @@ function TransactionFilterDialog({
           </View>
 
           <View className="mt-6 flex-row gap-3">
-            <Pressable className="flex-1 rounded-2xl border border-border bg-background px-4 py-4" onPress={clearFilters}>
+            <Pressable className="flex-1 rounded-2xl border border-border bg-background p-4" onPress={clearFilters}>
               <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-foreground">Clear</Text>
             </Pressable>
-            <Pressable className="flex-1 rounded-2xl bg-primary px-4 py-4" onPress={onClose}>
+            <Pressable className="flex-1 rounded-2xl bg-primary p-4" onPress={onClose}>
               <Text className="text-center text-sm font-black uppercase tracking-[0.16em] text-primary-foreground">Apply</Text>
             </Pressable>
           </View>

@@ -210,7 +210,7 @@ export async function upsertPulledAttachment(attachment: LocalTransactionAttachm
   return true;
 }
 
-export async function getLocalAttachment(userId: string, attachmentId: string) {
+async function getLocalAttachment(userId: string, attachmentId: string) {
   const db = await initializeDatabase();
 
   return db.getFirstAsync<LocalTransactionAttachment>(

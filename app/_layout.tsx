@@ -3,7 +3,6 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Text, TextInput } from 'react-native';
 import 'react-native-reanimated';
 
 import '../global.css';
@@ -14,19 +13,6 @@ import { initializeDatabase } from '@/src/db';
 import { createLogger } from '@/src/lib/logger';
 
 const logger = createLogger('app');
-
-type FontScalingComponent = {
-  defaultProps?: {
-    allowFontScaling?: boolean;
-    maxFontSizeMultiplier?: number;
-  };
-};
-
-for (const Component of [Text, TextInput] as FontScalingComponent[]) {
-  Component.defaultProps = Component.defaultProps ?? {};
-  Component.defaultProps.allowFontScaling = false;
-  Component.defaultProps.maxFontSizeMultiplier = 1;
-}
 
 SplashScreen.preventAutoHideAsync().catch((error) => {
   logger.warn('failed to prevent splash auto hide', error);

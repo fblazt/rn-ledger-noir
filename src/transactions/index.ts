@@ -5,12 +5,7 @@ export {
   listLocalTransactions,
   updateLocalTransaction,
 } from './local';
-export {
-  fromRemoteTransaction,
-  listRemoteTransactions,
-  toRemoteTransactionPayload,
-  upsertRemoteTransaction,
-} from './remote';
+export { fromRemoteTransaction, toRemoteTransactionPayload } from './remote';
 export { transactionFormSchema } from './types';
 export type {
   RemoteTransaction,

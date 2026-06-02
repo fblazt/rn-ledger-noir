@@ -10,7 +10,7 @@ type AmountInputProps = {
 export function AmountInput({ onChangeValue, value }: AmountInputProps) {
   return (
     <TextInput
-      className="mt-3 rounded-2xl border border-border bg-background px-4 py-4 text-base font-bold text-foreground"
+      className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
       inputMode="numeric"
       keyboardType="number-pad"
       onChangeText={(nextValue) => onChangeValue(normalizeAmountInput(nextValue))}

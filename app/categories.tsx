@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -44,15 +44,11 @@ export default function CategoriesScreen() {
   const [filter, setFilter] = useState<CategoryListFilter>('all');
   const [loading, setLoading] = useState(true);
 
-  const visibleCategories = useMemo(() => {
-    if (filter === 'all') {
-      return categories;
-    }
+  const visibleCategories = filter === 'all'
+    ? categories
+    : categories.filter((category) => category.type === filter);
 
-    return categories.filter((category) => category.type === filter);
-  }, [categories, filter]);
-
-  const loadCategories = useCallback(async () => {
+  async function loadCategories() {
     if (!user) {
       return;
     }
@@ -64,16 +60,14 @@ export default function CategoriesScreen() {
       setCategories(await listLocalCategories(user.id));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load categories.');
-    } finally {
-      setLoading(false);
     }
-  }, [user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadCategories();
-    }, [loadCategories])
-  );
+    setLoading(false);
+  }
+
+  useFocusEffect(() => {
+    loadCategories();
+  });
 
   async function confirmDelete() {
     if (!user || !deleteTarget) {
@@ -104,7 +98,7 @@ export default function CategoriesScreen() {
         eyebrow="Taxonomy"
         title="Category desk"
       >
-      <Pressable className="mt-7 h-11 w-11 items-center justify-center rounded-full border border-border bg-card" onPress={() => router.back()}>
+      <Pressable className="mt-7 size-11 items-center justify-center rounded-full border border-border bg-card" onPress={() => router.back()}>
         <Text className="text-xl font-black text-foreground">←</Text>
       </Pressable>
 
@@ -154,7 +148,7 @@ export default function CategoriesScreen() {
               <View className="flex-row items-start justify-between gap-4">
                 <View className="flex-1">
                   <View className="flex-row items-center gap-3">
-                    <View className="h-4 w-4 rounded-full" style={{ backgroundColor: category.color ?? '#73706A' }} />
+                    <View className="size-4 rounded-full" style={{ backgroundColor: category.color ?? '#73706A' }} />
                     <Text className="text-xl font-black text-foreground">{category.name}</Text>
                   </View>
                   <Text className="mt-2 text-sm font-bold uppercase tracking-[0.16em] text-muted">

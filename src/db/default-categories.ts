@@ -13,7 +13,7 @@ export type DefaultCategoryTemplate = {
   color: string;
 };
 
-export const DEFAULT_CATEGORY_TEMPLATES: DefaultCategoryTemplate[] = [
+const DEFAULT_CATEGORY_TEMPLATES: DefaultCategoryTemplate[] = [
   { key: 'salary', name: 'Salary', type: 'income', icon: 'banknote', color: '#36D399' },
   { key: 'bonus', name: 'Bonus', type: 'income', icon: 'sparkles', color: '#FBBF24' },
   { key: 'food', name: 'Food', type: 'expense', icon: 'utensils', color: '#FB7185' },
@@ -25,10 +25,15 @@ export const DEFAULT_CATEGORY_TEMPLATES: DefaultCategoryTemplate[] = [
 export async function seedDefaultCategories(db: SQLiteDatabase, userId: string) {
   const createdAt = nowIso();
 
-  for (const template of DEFAULT_CATEGORY_TEMPLATES) {
-    const id = await createDefaultCategoryId(userId, template.key);
+  const categoryRows = await Promise.all(
+    DEFAULT_CATEGORY_TEMPLATES.map(async (template) => ({
+      id: await createDefaultCategoryId(userId, template.key),
+      template,
+    }))
+  );
 
-    await db.runAsync(
+  await Promise.all(
+    categoryRows.map(({ id, template }) => db.runAsync(
       `insert or ignore into local_categories (
         id,
         user_id,
@@ -49,8 +54,8 @@ export async function seedDefaultCategories(db: SQLiteDatabase, userId: string) 
       template.color,
       createdAt,
       createdAt
-    );
-  }
+    ))
+  );
 }
 
 export async function listDefaultCategories(db: SQLiteDatabase, userId: string) {

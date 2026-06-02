@@ -1,8 +1,6 @@
 import { isOnline } from '@/src/lib/network';
 import { createLogger } from '@/src/lib/logger';
 
-import { syncLocalData } from './sync';
-
 const logger = createLogger('sync');
 let activeSync: Promise<unknown> | null = null;
 
@@ -22,6 +20,7 @@ async function runWhenOnline(userId: string) {
       return;
     }
 
+    const { syncLocalData } = await import('./sync');
     await syncLocalData(userId);
   } catch (error) {
     logger.error('background sync failed', error);

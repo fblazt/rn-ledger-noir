@@ -40,135 +40,119 @@ export async function syncLocalData(userId: string): Promise<SyncResult> {
 }
 
 async function pushPendingCategories(userId: string, result: SyncResult) {
-  let pushed = 0;
   const categories = await listPendingSyncRows('category', userId);
+  const pushResults = await Promise.all(
+    categories.map(async (category) => {
+      try {
+        const remoteCategory = await pushCategory(category);
+        await markSyncStatus('category', userId, remoteCategory.id, 'synced', remoteCategory.updated_at);
+        return true;
+      } catch (error) {
+        logger.error('category push failed', category.id, error);
+        await markSyncStatus('category', userId, category.id, 'failed', null);
+        result.failed += 1;
+        return false;
+      }
+    })
+  );
 
-  for (const category of categories) {
-    try {
-      const remoteCategory = await pushCategory(category);
-      await markSyncStatus('category', userId, remoteCategory.id, 'synced', remoteCategory.updated_at);
-      pushed += 1;
-    } catch (error) {
-      logger.error('category push failed', category.id, error);
-      await markSyncStatus('category', userId, category.id, 'failed', null);
-      result.failed += 1;
-    }
-  }
-
-  return pushed;
+  return pushResults.filter(Boolean).length;
 }
 
 async function pushPendingTransactions(userId: string, result: SyncResult) {
-  let pushed = 0;
   const transactions = await listPendingSyncRows('transaction', userId);
+  const pushResults = await Promise.all(
+    transactions.map(async (transaction) => {
+      try {
+        const remoteTransaction = await pushTransaction(transaction);
+        await markSyncStatus('transaction', userId, remoteTransaction.id, 'synced', remoteTransaction.updated_at);
+        return true;
+      } catch (error) {
+        logger.error('transaction push failed', transaction.id, error);
+        await markSyncStatus('transaction', userId, transaction.id, 'failed', null);
+        result.failed += 1;
+        return false;
+      }
+    })
+  );
 
-  for (const transaction of transactions) {
-    try {
-      const remoteTransaction = await pushTransaction(transaction);
-      await markSyncStatus('transaction', userId, remoteTransaction.id, 'synced', remoteTransaction.updated_at);
-      pushed += 1;
-    } catch (error) {
-      logger.error('transaction push failed', transaction.id, error);
-      await markSyncStatus('transaction', userId, transaction.id, 'failed', null);
-      result.failed += 1;
-    }
-  }
-
-  return pushed;
+  return pushResults.filter(Boolean).length;
 }
 
 async function pushPendingBudgets(userId: string, result: SyncResult) {
-  let pushed = 0;
   const budgets = await listPendingSyncRows('budget', userId);
+  const pushResults = await Promise.all(
+    budgets.map(async (budget) => {
+      try {
+        const remoteBudget = await pushBudget(budget);
+        await markSyncStatus('budget', userId, remoteBudget.id, 'synced', remoteBudget.updated_at);
+        return true;
+      } catch (error) {
+        logger.error('budget push failed', budget.id, error);
+        await markSyncStatus('budget', userId, budget.id, 'failed', null);
+        result.failed += 1;
+        return false;
+      }
+    })
+  );
 
-  for (const budget of budgets) {
-    try {
-      const remoteBudget = await pushBudget(budget);
-      await markSyncStatus('budget', userId, remoteBudget.id, 'synced', remoteBudget.updated_at);
-      pushed += 1;
-    } catch (error) {
-      logger.error('budget push failed', budget.id, error);
-      await markSyncStatus('budget', userId, budget.id, 'failed', null);
-      result.failed += 1;
-    }
-  }
-
-  return pushed;
+  return pushResults.filter(Boolean).length;
 }
 
 async function pushPendingAttachments(userId: string, result: SyncResult) {
-  let pushed = 0;
   const attachments = await listPendingAttachmentSyncRows(userId);
+  const pushResults = await Promise.all(
+    attachments.map(async (attachment) => {
+      try {
+        if (!attachment.deleted_at && attachment.upload_status !== 'uploaded') {
+          await markAttachmentUploadStatus(userId, attachment.id, 'uploading', null);
+        }
 
-  for (const attachment of attachments) {
-    try {
-      if (!attachment.deleted_at && attachment.upload_status !== 'uploaded') {
-        await markAttachmentUploadStatus(userId, attachment.id, 'uploading', null);
+        const remoteAttachment = await pushAttachment(attachment);
+        await Promise.all([
+          markAttachmentUploadStatus(userId, remoteAttachment.id, 'uploaded', nowIso()),
+          markAttachmentSyncStatus(userId, remoteAttachment.id, 'synced', remoteAttachment.updated_at),
+        ]);
+        return true;
+      } catch (error) {
+        logger.error('attachment push failed', attachment.id, error);
+        await Promise.all([
+          markAttachmentUploadStatus(userId, attachment.id, 'failed', null),
+          markAttachmentSyncStatus(userId, attachment.id, 'failed', null),
+        ]);
+        result.failed += 1;
+        return false;
       }
+    })
+  );
 
-      const remoteAttachment = await pushAttachment(attachment);
-      await markAttachmentUploadStatus(userId, remoteAttachment.id, 'uploaded', nowIso());
-      await markAttachmentSyncStatus(userId, remoteAttachment.id, 'synced', remoteAttachment.updated_at);
-      pushed += 1;
-    } catch (error) {
-      logger.error('attachment push failed', attachment.id, error);
-      await markAttachmentUploadStatus(userId, attachment.id, 'failed', null);
-      await markAttachmentSyncStatus(userId, attachment.id, 'failed', null);
-      result.failed += 1;
-    }
-  }
-
-  return pushed;
+  return pushResults.filter(Boolean).length;
 }
 
 async function pullRemoteCategories(userId: string) {
-  let pulled = 0;
   const categories = await pullCategories(userId);
+  const pullResults = await Promise.all(categories.map((category) => upsertPulledCategory(category)));
 
-  for (const category of categories) {
-    if (await upsertPulledCategory(category)) {
-      pulled += 1;
-    }
-  }
-
-  return pulled;
+  return pullResults.filter(Boolean).length;
 }
 
 async function pullRemoteTransactions(userId: string) {
-  let pulled = 0;
   const transactions = await pullTransactions(userId);
+  const pullResults = await Promise.all(transactions.map((transaction) => upsertPulledTransaction(transaction)));
 
-  for (const transaction of transactions) {
-    if (await upsertPulledTransaction(transaction)) {
-      pulled += 1;
-    }
-  }
-
-  return pulled;
+  return pullResults.filter(Boolean).length;
 }
 
 async function pullRemoteAttachments(userId: string) {
-  let pulled = 0;
   const attachments = await pullAttachments(userId);
+  const pullResults = await Promise.all(attachments.map((attachment) => upsertPulledAttachment(attachment)));
 
-  for (const attachment of attachments) {
-    if (await upsertPulledAttachment(attachment)) {
-      pulled += 1;
-    }
-  }
-
-  return pulled;
+  return pullResults.filter(Boolean).length;
 }
 
 async function pullRemoteBudgets(userId: string) {
-  let pulled = 0;
   const budgets = await pullBudgets(userId);
+  const pullResults = await Promise.all(budgets.map((budget) => upsertPulledBudget(budget)));
 
-  for (const budget of budgets) {
-    if (await upsertPulledBudget(budget)) {
-      pulled += 1;
-    }
-  }
-
-  return pulled;
+  return pullResults.filter(Boolean).length;
 }
