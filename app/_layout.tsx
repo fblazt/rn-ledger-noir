@@ -18,10 +18,6 @@ SplashScreen.preventAutoHideAsync().catch((error) => {
   logger.warn('failed to prevent splash auto hide', error);
 });
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 

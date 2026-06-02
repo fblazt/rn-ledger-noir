@@ -38,22 +38,30 @@ async function migrateDatabase() {
 
   logger.info('schema version', currentVersion, 'target', CURRENT_SCHEMA_VERSION);
 
-  for (let version = currentVersion + 1; version <= CURRENT_SCHEMA_VERSION; version += 1) {
-    const migration = MIGRATIONS[version];
-
-    if (!migration) {
-      throw new Error(`Missing local SQLite migration ${version}`);
-    }
-
-    logger.info('applying migration', version);
-
-    await db.withTransactionAsync(async () => {
-      await db.execAsync(migration);
-      await db.runAsync('insert into local_schema_migrations (version) values (?)', version);
-    });
-  }
+  await applyMigrations(db, currentVersion + 1);
 
   logger.info('database ready');
 
   return db;
+}
+
+async function applyMigrations(db: SQLite.SQLiteDatabase, version: number): Promise<void> {
+  if (version > CURRENT_SCHEMA_VERSION) {
+    return;
+  }
+
+  const migration = MIGRATIONS[version];
+
+  if (!migration) {
+    throw new Error(`Missing local SQLite migration ${version}`);
+  }
+
+  logger.info('applying migration', version);
+
+  await db.withTransactionAsync(async () => {
+    await db.execAsync(migration);
+    await db.runAsync('insert into local_schema_migrations (version) values (?)', version);
+  });
+
+  await applyMigrations(db, version + 1);
 }

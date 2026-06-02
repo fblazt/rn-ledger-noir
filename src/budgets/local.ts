@@ -2,7 +2,7 @@ import { initializeDatabase } from '@/src/db';
 import type { LocalBudget } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createId } from '@/src/lib/id';
-import { scheduleSyncAfterLocalWrite } from '@/src/sync/auto';
+import { scheduleSyncAfterLocalWrite } from '@/src/sync/scheduler';
 
 import type { BudgetFormInput, BudgetWithUsage } from './types';
 

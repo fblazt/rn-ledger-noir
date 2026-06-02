@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -11,6 +10,7 @@ import { deleteLocalBudget, listLocalBudgets } from '@/src/budgets';
 import type { BudgetWithUsage } from '@/src/budgets';
 import { AmountText, ConfirmationDialog, EmptyState, ErrorState, LoadingState, MonthPickerField, Screen, SyncBadge } from '@/src/components/ui';
 import { formatMonthLabel, toMonthKey } from '@/src/lib/date';
+import { useObjectState } from '@/src/lib/use-object-state';
 import { useSyncSummary } from '@/src/sync';
 
 function formatSyncStatus(status: BudgetWithUsage['sync_status']) {
@@ -30,28 +30,30 @@ export default function BudgetsScreen() {
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
   const { status: syncStatus } = useSyncSummary();
-  const [budgets, setBudgets] = useState<BudgetWithUsage[]>([]);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<BudgetWithUsage | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(() => toMonthKey(new Date()));
+  const [state, setState] = useObjectState({
+    budgets: [] as BudgetWithUsage[],
+    deleteError: null as string | null,
+    deleteTarget: null as BudgetWithUsage | null,
+    errorMessage: null as string | null,
+    loading: true,
+    month: toMonthKey(new Date()),
+  });
+  const { budgets, deleteError, deleteTarget, errorMessage, loading, month } = state;
 
   async function loadBudgets() {
     if (!user) {
       return;
     }
 
-    setLoading(true);
-    setErrorMessage(null);
+    setState({ errorMessage: null, loading: true });
 
     try {
-      setBudgets(await listLocalBudgets(user.id, month));
+      setState({ budgets: await listLocalBudgets(user.id, month) });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load budgets.');
+      setState({ errorMessage: error instanceof Error ? error.message : 'Unable to load budgets.' });
     }
 
-    setLoading(false);
+    setState({ loading: false });
   }
 
   useFocusEffect(() => {
@@ -63,20 +65,19 @@ export default function BudgetsScreen() {
       return;
     }
 
-    setDeleteError(null);
+    setState({ deleteError: null });
 
     try {
       await deleteLocalBudget(user.id, deleteTarget.id);
-      setDeleteTarget(null);
+      setState({ deleteTarget: null });
       await loadBudgets();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : 'Unable to delete budget.');
+      setState({ deleteError: error instanceof Error ? error.message : 'Unable to delete budget.' });
     }
   }
 
   function closeDeleteDialog() {
-    setDeleteError(null);
-    setDeleteTarget(null);
+    setState({ deleteError: null, deleteTarget: null });
   }
 
   return (
@@ -92,7 +93,7 @@ export default function BudgetsScreen() {
             <Text className="text-xs font-black uppercase tracking-[0.18em] text-muted">Viewing</Text>
             <Text className="mt-1 text-lg font-black text-foreground">{formatMonthLabel(month)}</Text>
           </View>
-          <MonthPickerField compact value={month} onChange={setMonth} />
+          <MonthPickerField compact value={month} onChange={(nextMonth) => setState({ month: nextMonth })} />
         </View>
 
         {errorMessage ? (
@@ -115,7 +116,7 @@ export default function BudgetsScreen() {
         ) : (
           <View className="mt-7 gap-3">
             {budgets.map((budget) => (
-              <BudgetCard key={budget.id} budget={budget} onDelete={() => setDeleteTarget(budget)} />
+              <BudgetCard key={budget.id} budget={budget} onDelete={() => setState({ deleteTarget: budget })} />
             ))}
           </View>
         )}

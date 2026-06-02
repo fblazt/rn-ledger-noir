@@ -4,7 +4,7 @@ import { initializeDatabase } from '@/src/db';
 import type { LocalTransactionAttachment } from '@/src/db';
 import { nowIso } from '@/src/lib/date';
 import { createId } from '@/src/lib/id';
-import { scheduleSyncAfterLocalWrite } from '@/src/sync/auto';
+import { scheduleSyncAfterLocalWrite } from '@/src/sync/scheduler';
 
 import type { AttachmentSource } from './types';
 

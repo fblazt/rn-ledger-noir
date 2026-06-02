@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
@@ -10,6 +10,7 @@ import { listLocalCategories } from '@/src/categories';
 import type { Category } from '@/src/categories';
 import { AmountInput, FieldError, FormError, LoadingState, MonthPickerField, Screen } from '@/src/components/ui';
 import { toMonthKey } from '@/src/lib/date';
+import { useObjectState } from '@/src/lib/use-object-state';
 
 type FieldErrors = Partial<Record<keyof BudgetFormInput, string>>;
 
@@ -22,13 +23,16 @@ const EMPTY_FORM: BudgetFormInput = {
 export default function BudgetFormScreen() {
   const { id, month: routeMonth } = useLocalSearchParams<{ id?: string; month?: string }>();
   const { user } = useAuth();
-  const [budgetedCategoryIds, setBudgetedCategoryIds] = useState<Set<string>>(new Set());
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [form, setForm] = useState<BudgetFormInput>({ ...EMPTY_FORM, month: routeMonth ?? EMPTY_FORM.month });
-  const [formError, setFormError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [state, setState] = useObjectState({
+    budgetedCategoryIds: new Set<string>(),
+    categories: [] as Category[],
+    fieldErrors: {} as FieldErrors,
+    formError: null as string | null,
+    loading: true,
+    submitting: false,
+  });
+  const { budgetedCategoryIds, categories, fieldErrors, formError, loading, submitting } = state;
 
   async function loadCategoryOptions() {
     if (!user) {
@@ -40,18 +44,16 @@ export default function BudgetFormScreen() {
       listBudgetedCategoryIds(user.id, form.month, id),
     ]);
 
-    setCategories(categoryRows);
-    setBudgetedCategoryIds(budgetedIds);
+    setState({ budgetedCategoryIds: budgetedIds, categories: categoryRows });
   }
 
-  useEffect(() => {
+  useFocusEffect(() => {
     async function loadFormData() {
       if (!user) {
         return;
       }
 
-      setLoading(true);
-      setFormError(null);
+      setState({ formError: null, loading: true });
 
       try {
         const [categoryRows, budgetedIds] = await Promise.all([
@@ -59,14 +61,13 @@ export default function BudgetFormScreen() {
           listBudgetedCategoryIds(user.id, form.month, id),
         ]);
 
-        setCategories(categoryRows);
-        setBudgetedCategoryIds(budgetedIds);
+        setState({ budgetedCategoryIds: budgetedIds, categories: categoryRows });
 
         if (id) {
           const budget = await getLocalBudget(user.id, id);
 
           if (!budget) {
-            setFormError('Budget not found.');
+            setState({ formError: 'Budget not found.' });
           } else {
             setForm({
               categoryId: budget.category_id,
@@ -76,18 +77,18 @@ export default function BudgetFormScreen() {
           }
         }
       } catch (error) {
-        setFormError(error instanceof Error ? error.message : 'Unable to load budget.');
+        setState({ formError: error instanceof Error ? error.message : 'Unable to load budget.' });
       }
 
-      setLoading(false);
+      setState({ loading: false });
     }
 
     loadFormData();
-  }, [form.month, id, user]);
+  });
 
   useFocusEffect(() => {
     loadCategoryOptions().catch((error) => {
-      setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
+      setState({ formError: error instanceof Error ? error.message : 'Unable to refresh categories.' });
     });
   });
 
@@ -96,14 +97,13 @@ export default function BudgetFormScreen() {
       return;
     }
 
-    setFieldErrors({});
-    setFormError(null);
+    setState({ fieldErrors: {}, formError: null });
 
     const parsed = budgetFormSchema.safeParse(form);
 
     if (!parsed.success) {
-      setFieldErrors(
-        parsed.error.issues.reduce<FieldErrors>((errors, issue) => {
+      setState({
+        fieldErrors: parsed.error.issues.reduce<FieldErrors>((errors, issue) => {
           const field = issue.path[0] as keyof BudgetFormInput | undefined;
 
           if (field) {
@@ -111,12 +111,12 @@ export default function BudgetFormScreen() {
           }
 
           return errors;
-        }, {})
-      );
+        }, {}),
+      });
       return;
     }
 
-    setSubmitting(true);
+    setState({ submitting: true });
 
     try {
       if (id) {
@@ -127,10 +127,10 @@ export default function BudgetFormScreen() {
 
       router.back();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Unable to save budget.');
+      setState({ formError: error instanceof Error ? error.message : 'Unable to save budget.' });
     }
 
-    setSubmitting(false);
+    setState({ submitting: false });
   }
 
   if (loading) {

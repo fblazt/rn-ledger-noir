@@ -1,8 +1,8 @@
-import { Redirect, Tabs } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Redirect } from 'expo-router';
+import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/src/auth';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -19,49 +19,27 @@ export default function TabLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
+  const activeColor = Colors[colorScheme ?? 'light'].tint;
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="chart.pie.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="transactions"
-        options={{
-          title: 'Transactions',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="list.bullet.rectangle.fill" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="budgets"
-        options={{
-          title: 'Budgets',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="wallet.pass.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="gearshape.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    <NativeTabs tintColor={activeColor}>
+      <NativeTabs.Trigger name="index" hidden />
+      <NativeTabs.Trigger name="dashboard">
+        <Icon src={<VectorIcon family={MaterialIcons} name="pie-chart" />} />
+        <Label>Dashboard</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="transactions">
+        <Icon src={<VectorIcon family={MaterialIcons} name="receipt-long" />} />
+        <Label>Transactions</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="budgets">
+        <Icon src={<VectorIcon family={MaterialIcons} name="account-balance-wallet" />} />
+        <Label>Budgets</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings">
+        <Icon src={<VectorIcon family={MaterialIcons} name="settings" />} />
+        <Label>Settings</Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

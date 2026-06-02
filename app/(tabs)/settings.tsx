@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth';
@@ -8,6 +7,7 @@ import { FormError, Screen, SyncBadge } from '@/src/components/ui';
 import { initializeDatabase, listDefaultCategories, seedDefaultCategories } from '@/src/db';
 import { verifyBasicLocalWrites } from '@/src/db/smoke';
 import { createLogger } from '@/src/lib/logger';
+import { useObjectState } from '@/src/lib/use-object-state';
 import { getLocalSyncSummary, syncLocalData } from '@/src/sync';
 import type { SyncSummary } from '@/src/sync';
 
@@ -22,15 +22,18 @@ const syncEntityLabels = {
 
 export default function SettingsScreen() {
   const { setupStatus, signOut, user } = useAuth();
-  const [logoutStatus, setLogoutStatus] = useState<'idle' | 'running' | 'failed'>('idle');
-  const [smokeStatus, setSmokeStatus] = useState<'idle' | 'running' | 'passed' | 'failed'>('idle');
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'synced' | 'failed'>('idle');
-  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
+  const [state, setState] = useObjectState({
+    logoutStatus: 'idle' as 'idle' | 'running' | 'failed',
+    smokeStatus: 'idle' as 'idle' | 'running' | 'passed' | 'failed',
+    syncError: null as string | null,
+    syncStatus: 'idle' as 'idle' | 'running' | 'synced' | 'failed',
+    syncSummary: null as SyncSummary | null,
+  });
+  const { logoutStatus, smokeStatus, syncError, syncStatus, syncSummary } = state;
 
   useFocusEffect(() => {
     if (!user) {
-      setSyncSummary(null);
+      setState({ syncSummary: null });
       return;
     }
 
@@ -38,20 +41,20 @@ export default function SettingsScreen() {
   });
 
   async function submitLogout() {
-    setLogoutStatus('running');
+    setState({ logoutStatus: 'running' });
 
     try {
       await signOut();
-      setLogoutStatus('idle');
+      setState({ logoutStatus: 'idle' });
     } catch (error) {
       logger.error('logout failed', error);
-      setLogoutStatus('failed');
+      setState({ logoutStatus: 'failed' });
     }
   }
 
   async function refreshSyncSummary(userId: string) {
     try {
-      setSyncSummary(await getLocalSyncSummary(userId));
+      setState({ syncSummary: await getLocalSyncSummary(userId) });
     } catch (error) {
       logger.error('failed to load sync summary', error);
     }
@@ -59,27 +62,28 @@ export default function SettingsScreen() {
 
   async function runManualSync() {
     if (!user) {
-      setSyncError('Log in before syncing local data.');
+      setState({ syncError: 'Log in before syncing local data.' });
       return;
     }
 
-    setSyncStatus('running');
-    setSyncError(null);
+    setState({ syncError: null, syncStatus: 'running' });
 
     try {
       await syncLocalData(user.id);
       await refreshSyncSummary(user.id);
-      setSyncStatus('synced');
+      setState({ syncStatus: 'synced' });
     } catch (error) {
       logger.error('manual sync failed', error);
       await refreshSyncSummary(user.id);
-      setSyncError(error instanceof Error ? error.message : 'Sync failed. Try again.');
-      setSyncStatus('failed');
+      setState({
+        syncError: error instanceof Error ? error.message : 'Sync failed. Try again.',
+        syncStatus: 'failed',
+      });
     }
   }
 
   async function runLocalSmokeTest() {
-    setSmokeStatus('running');
+    setState({ smokeStatus: 'running' });
 
     try {
       const db = await initializeDatabase();
@@ -95,10 +99,10 @@ export default function SettingsScreen() {
       }
 
       logger.info('passed', { defaultCategoryCount: categories.length });
-      setSmokeStatus('passed');
+      setState({ smokeStatus: 'passed' });
     } catch (error) {
       logger.error('failed', error);
-      setSmokeStatus('failed');
+      setState({ smokeStatus: 'failed' });
     }
   }
 

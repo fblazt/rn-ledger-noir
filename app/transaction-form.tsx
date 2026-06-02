@@ -1,10 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -13,8 +11,11 @@ import type { Attachment } from '@/src/attachments';
 import { useAuth } from '@/src/auth';
 import { listLocalCategories } from '@/src/categories';
 import type { Category, CategoryType } from '@/src/categories';
-import { AmountInput, ConfirmationDialog, DatePickerField, FieldError, FormError, LoadingState, Screen } from '@/src/components/ui';
+import { ConfirmationDialog, FormError, LoadingState, Screen } from '@/src/components/ui';
 import { toIsoDate } from '@/src/lib/date';
+import { useObjectState } from '@/src/lib/use-object-state';
+import { ReceiptSection } from '@/src/components/transactions/receipt-section';
+import { TransactionFields } from '@/src/components/transactions/transaction-fields';
 import {
   createLocalTransaction,
   getLocalTransaction,
@@ -33,20 +34,26 @@ const EMPTY_FORM: TransactionFormInput = {
 
 type FieldErrors = Partial<Record<keyof TransactionFormInput, string>>;
 
-function formatAttachmentStatus(attachment: Attachment) {
-  if (attachment.upload_status === 'failed' || attachment.sync_status === 'failed') {
-    return 'Backup failed';
-  }
+async function buildAttachmentUris(rows: Attachment[]) {
+  const entries = await Promise.all(
+    rows.map(async (attachment) => {
+      if (attachment.local_uri) {
+        return [attachment.id, attachment.local_uri] as const;
+      }
 
-  if (attachment.upload_status === 'uploading') {
-    return 'Backing up';
-  }
+      if (!attachment.storage_path) {
+        return [attachment.id, ''] as const;
+      }
 
-  if (attachment.sync_status === 'pending' || attachment.upload_status === 'local') {
-    return 'Needs backup';
-  }
+      try {
+        return [attachment.id, await createReceiptSignedUrl(attachment.storage_path)] as const;
+      } catch {
+        return [attachment.id, ''] as const;
+      }
+    })
+  );
 
-  return null;
+  return Object.fromEntries(entries);
 }
 
 export default function TransactionFormScreen() {
@@ -55,42 +62,35 @@ export default function TransactionFormScreen() {
   const iconColor = Colors[colorScheme].text;
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [attachmentUris, setAttachmentUris] = useState<Record<string, string>>({});
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [attachmentLoading, setAttachmentLoading] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [deleteAttachmentError, setDeleteAttachmentError] = useState<string | null>(null);
-  const [deleteAttachmentTarget, setDeleteAttachmentTarget] = useState<Attachment | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [form, setForm] = useState<TransactionFormInput>(EMPTY_FORM);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [state, setState] = useObjectState({
+    attachmentError: null as string | null,
+    attachmentLoading: false,
+    attachmentUris: {} as Record<string, string>,
+    attachments: [] as Attachment[],
+    categories: [] as Category[],
+    deleteAttachmentError: null as string | null,
+    deleteAttachmentTarget: null as Attachment | null,
+    fieldErrors: {} as FieldErrors,
+    formError: null as string | null,
+    loading: true,
+    submitting: false,
+  });
+  const {
+    attachmentError,
+    attachmentLoading,
+    attachmentUris,
+    attachments,
+    categories,
+    deleteAttachmentError,
+    deleteAttachmentTarget,
+    fieldErrors,
+    formError,
+    loading,
+    submitting,
+  } = state;
 
   const formCategories = categories.filter((category) => category.type === form.type);
-
-  async function refreshAttachmentUris(rows: Attachment[]) {
-    const entries = await Promise.all(
-      rows.map(async (attachment) => {
-        if (attachment.local_uri) {
-          return [attachment.id, attachment.local_uri] as const;
-        }
-
-        if (!attachment.storage_path) {
-          return [attachment.id, ''] as const;
-        }
-
-        try {
-          return [attachment.id, await createReceiptSignedUrl(attachment.storage_path)] as const;
-        } catch {
-          return [attachment.id, ''] as const;
-        }
-      })
-    );
-
-    setAttachmentUris(Object.fromEntries(entries));
-  }
 
   async function loadSupportingData() {
     if (!user) {
@@ -102,9 +102,11 @@ export default function TransactionFormScreen() {
       id ? listLocalAttachments(user.id, id) : Promise.resolve([]),
     ]);
 
-    setCategories(categoryRows);
-    setAttachments(attachmentRows);
-    await refreshAttachmentUris(attachmentRows);
+    setState({
+      attachmentUris: await buildAttachmentUris(attachmentRows),
+      attachments: attachmentRows,
+      categories: categoryRows,
+    });
   }
 
   useEffect(() => {
@@ -113,8 +115,7 @@ export default function TransactionFormScreen() {
         return;
       }
 
-      setLoading(true);
-      setFormError(null);
+      setState({ formError: null, loading: true });
 
       try {
         const [categoryRows, attachmentRows] = await Promise.all([
@@ -122,15 +123,17 @@ export default function TransactionFormScreen() {
           id ? listLocalAttachments(user.id, id) : Promise.resolve([]),
         ]);
 
-        setCategories(categoryRows);
-        setAttachments(attachmentRows);
-        await refreshAttachmentUris(attachmentRows);
+        setState({
+          attachmentUris: await buildAttachmentUris(attachmentRows),
+          attachments: attachmentRows,
+          categories: categoryRows,
+        });
 
         if (id) {
           const transaction = await getLocalTransaction(user.id, id);
 
           if (!transaction) {
-            setFormError('Transaction not found.');
+            setState({ formError: 'Transaction not found.' });
           } else {
             setForm({
               amount: String(transaction.amount),
@@ -142,18 +145,18 @@ export default function TransactionFormScreen() {
           }
         }
       } catch (error) {
-        setFormError(error instanceof Error ? error.message : 'Unable to load transaction.');
+        setState({ formError: error instanceof Error ? error.message : 'Unable to load transaction.' });
       }
 
-      setLoading(false);
+      setState({ loading: false });
     }
 
     loadFormData();
-  }, [id, user]);
+  }, [id, setState, user]);
 
   useFocusEffect(() => {
     loadSupportingData().catch((error) => {
-      setFormError(error instanceof Error ? error.message : 'Unable to refresh categories.');
+      setState({ formError: error instanceof Error ? error.message : 'Unable to refresh categories.' });
     });
   });
 
@@ -162,14 +165,13 @@ export default function TransactionFormScreen() {
       return;
     }
 
-    setFieldErrors({});
-    setFormError(null);
+    setState({ fieldErrors: {}, formError: null });
 
     const parsed = transactionFormSchema.safeParse(form);
 
     if (!parsed.success) {
-      setFieldErrors(
-        parsed.error.issues.reduce<FieldErrors>((errors, issue) => {
+      setState({
+        fieldErrors: parsed.error.issues.reduce<FieldErrors>((errors, issue) => {
           const field = issue.path[0] as keyof TransactionFormInput | undefined;
 
           if (field) {
@@ -177,19 +179,19 @@ export default function TransactionFormScreen() {
           }
 
           return errors;
-        }, {})
-      );
+        }, {}),
+      });
       return;
     }
 
     const selectedCategory = categories.find((category) => category.id === parsed.data.categoryId);
 
     if (!selectedCategory || selectedCategory.type !== parsed.data.type) {
-      setFieldErrors({ categoryId: 'Choose a category that matches the transaction type.' });
+      setState({ fieldErrors: { categoryId: 'Choose a category that matches the transaction type.' } });
       return;
     }
 
-    setSubmitting(true);
+    setState({ submitting: true });
 
     try {
       if (id) {
@@ -200,20 +202,19 @@ export default function TransactionFormScreen() {
 
       router.back();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Unable to save transaction.');
+      setState({ formError: error instanceof Error ? error.message : 'Unable to save transaction.' });
     }
 
-    setSubmitting(false);
+    setState({ submitting: false });
   }
 
   async function addAttachment(source: 'camera' | 'library') {
     if (!user || !id) {
-      setAttachmentError('Save the transaction before adding receipts.');
+      setState({ attachmentError: 'Save the transaction before adding receipts.' });
       return;
     }
 
-    setAttachmentError(null);
-    setAttachmentLoading(true);
+    setState({ attachmentError: null, attachmentLoading: true });
 
     try {
       const permission = source === 'camera'
@@ -221,7 +222,9 @@ export default function TransactionFormScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        setAttachmentError(source === 'camera' ? 'Camera permission is needed to take a receipt photo.' : 'Photo library permission is needed to attach a receipt.');
+        setState({
+          attachmentError: source === 'camera' ? 'Camera permission is needed to take a receipt photo.' : 'Photo library permission is needed to attach a receipt.',
+        });
       } else {
         const result = source === 'camera'
           ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
@@ -236,15 +239,17 @@ export default function TransactionFormScreen() {
             uri: asset.uri,
           });
           const nextAttachments = await listLocalAttachments(user.id, id);
-          setAttachments(nextAttachments);
-          await refreshAttachmentUris(nextAttachments);
+          setState({
+            attachmentUris: await buildAttachmentUris(nextAttachments),
+            attachments: nextAttachments,
+          });
         }
       }
     } catch (error) {
-      setAttachmentError(error instanceof Error ? error.message : 'Unable to attach receipt.');
+      setState({ attachmentError: error instanceof Error ? error.message : 'Unable to attach receipt.' });
     }
 
-    setAttachmentLoading(false);
+    setState({ attachmentLoading: false });
   }
 
   async function confirmDeleteAttachment() {
@@ -252,16 +257,18 @@ export default function TransactionFormScreen() {
       return;
     }
 
-    setDeleteAttachmentError(null);
+    setState({ deleteAttachmentError: null });
 
     try {
       await deleteLocalAttachment(user.id, deleteAttachmentTarget.id);
-      setDeleteAttachmentTarget(null);
+      setState({ deleteAttachmentTarget: null });
       const nextAttachments = id ? await listLocalAttachments(user.id, id) : [];
-      setAttachments(nextAttachments);
-      await refreshAttachmentUris(nextAttachments);
+      setState({
+        attachmentUris: await buildAttachmentUris(nextAttachments),
+        attachments: nextAttachments,
+      });
     } catch (error) {
-      setDeleteAttachmentError(error instanceof Error ? error.message : 'Unable to remove receipt.');
+      setState({ deleteAttachmentError: error instanceof Error ? error.message : 'Unable to remove receipt.' });
     }
   }
 
@@ -296,174 +303,25 @@ export default function TransactionFormScreen() {
       </Pressable>
 
       <View className="mt-6 rounded-[32px] border border-border bg-card p-5">
-        <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Type</Text>
-        <View className="mt-3 flex-row gap-2">
-          {(['expense', 'income'] as const).map((type) => (
-            <Pressable
-              key={type}
-              className={
-                form.type === type
-                  ? 'flex-1 rounded-2xl bg-primary px-4 py-3'
-                  : 'flex-1 rounded-2xl border border-border bg-background px-4 py-3'
-              }
-              accessibilityLabel={`Set transaction type to ${type}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: form.type === type }}
-              onPress={() => setFormType(type)}
-            >
-              <Text
-                className={
-                  form.type === type
-                    ? 'text-center text-sm font-black uppercase text-primary-foreground'
-                    : 'text-center text-sm font-black uppercase text-muted'
-                }
-              >
-                {type}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Amount</Text>
-        <AmountInput value={form.amount} onChangeValue={(amount) => setForm((current) => ({ ...current, amount }))} />
-        {fieldErrors.amount ? <FieldError message={fieldErrors.amount} /> : null}
-
-        <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Category</Text>
-        <View className="mt-3 flex-row flex-wrap gap-2">
-          {formCategories.map((category) => (
-            <Pressable
-              key={category.id}
-              className={
-                form.categoryId === category.id
-                  ? 'rounded-full border border-primary bg-primary px-4 py-2'
-                  : 'rounded-full border border-border bg-background px-4 py-2'
-              }
-              accessibilityLabel={`Choose ${category.name}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: form.categoryId === category.id }}
-              onPress={() => setForm((current) => ({ ...current, categoryId: category.id }))}
-            >
-              <Text
-                className={
-                  form.categoryId === category.id
-                    ? 'text-sm font-bold text-primary-foreground'
-                    : 'text-sm font-bold text-muted'
-                }
-              >
-                {category.name}
-              </Text>
-            </Pressable>
-          ))}
-          <Pressable
-            accessibilityLabel={`Create ${form.type} category`}
-            accessibilityRole="button"
-            className="rounded-full border border-dashed border-stamp bg-card px-4 py-2"
-            onPress={() => router.push({ pathname: '/category-form', params: { type: form.type } } as never)}
-          >
-            <Text className="text-sm font-black text-stamp">+ New category</Text>
-          </Pressable>
-        </View>
-        {formCategories.length === 0 ? (
-          <View className="mt-3 rounded-2xl border border-dashed border-border bg-background p-4">
-            <Text className="text-sm font-black text-foreground">No {form.type} categories yet.</Text>
-            <Text className="mt-1 text-sm leading-5 text-muted">Create one to keep this entry organized.</Text>
-          </View>
-        ) : null}
-        {fieldErrors.categoryId ? <FieldError message={fieldErrors.categoryId} /> : null}
-
-        <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Date</Text>
-        <DatePickerField
-          value={form.transactionDate}
-          onChange={(transactionDate) => setForm((current) => ({ ...current, transactionDate }))}
+        <TransactionFields
+          fieldErrors={fieldErrors}
+          form={form}
+          formCategories={formCategories}
+          onChangeForm={setForm}
+          onChangeType={setFormType}
         />
-        {fieldErrors.transactionDate ? <FieldError message={fieldErrors.transactionDate} /> : null}
 
-        <Text className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-stamp">Note</Text>
-        <TextInput
-          accessibilityLabel="Transaction note"
-          className="mt-3 rounded-2xl border border-border bg-background p-4 text-base font-bold text-foreground"
-          onChangeText={(note) => setForm((current) => ({ ...current, note }))}
-          placeholder="Optional memo"
-          placeholderTextColorClassName="accent-muted"
-          returnKeyType="done"
-          value={form.note}
+        <ReceiptSection
+          attachmentError={attachmentError}
+          attachmentLoading={attachmentLoading}
+          attachmentUris={attachmentUris}
+          attachments={attachments}
+          iconColor={iconColor}
+          onAddAttachment={addAttachment}
+          onRemoveAttachment={(attachment) => setState({ deleteAttachmentError: null, deleteAttachmentTarget: attachment })}
+          primaryForegroundColor={primaryForegroundColor}
+          transactionId={id}
         />
-        {fieldErrors.note ? <FieldError message={fieldErrors.note} /> : null}
-
-        <View className="mt-6 rounded-[24px] border border-border bg-background p-4">
-          <View className="flex-row items-start justify-between gap-4">
-            <View className="flex-1">
-              <Text className="text-xs font-black uppercase tracking-[0.2em] text-stamp">Receipts</Text>
-              <Text className="mt-2 text-sm leading-5 text-muted">
-                {id ? 'Attach receipt photos for safekeeping and backup.' : 'Save the transaction before adding receipts.'}
-              </Text>
-            </View>
-            <View className="flex-row gap-2">
-              <Pressable
-                className={id && !attachmentLoading ? 'size-11 items-center justify-center rounded-full bg-card' : 'size-11 items-center justify-center rounded-full bg-border opacity-60'}
-                accessibilityLabel="Take receipt photo"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !id || attachmentLoading }}
-                disabled={!id || attachmentLoading}
-                onPress={() => addAttachment('camera')}
-              >
-                <Ionicons color={iconColor} name="camera-outline" size={20} />
-              </Pressable>
-              <Pressable
-                className={id && !attachmentLoading ? 'size-11 items-center justify-center rounded-full bg-card' : 'size-11 items-center justify-center rounded-full bg-border opacity-60'}
-                accessibilityLabel="Attach receipt from photo library"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !id || attachmentLoading }}
-                disabled={!id || attachmentLoading}
-                onPress={() => addAttachment('library')}
-              >
-                <Ionicons color={iconColor} name="image-outline" size={20} />
-              </Pressable>
-            </View>
-          </View>
-
-          {attachmentError ? <FormError message={attachmentError} /> : null}
-
-          {attachments.length > 0 ? (
-            <View className="mt-4 gap-3">
-              {attachments.map((attachment) => (
-                <View key={attachment.id} className="flex-row items-center gap-3 rounded-2xl border border-border bg-card p-3">
-                  <Pressable
-                    accessibilityLabel="Preview receipt photo"
-                    accessibilityRole="imagebutton"
-                    className="overflow-hidden rounded-xl"
-                    onPress={() => router.push({ pathname: '/attachment-preview', params: { uri: attachmentUris[attachment.id] ?? attachment.local_uri } } as never)}
-                  >
-                    {attachmentUris[attachment.id] ? (
-                      <Image source={{ uri: attachmentUris[attachment.id] }} style={{ height: 64, width: 64 }} contentFit="cover" />
-                    ) : (
-                      <View className="size-16 items-center justify-center bg-background">
-                        <Ionicons color={iconColor} name="image-outline" size={20} />
-                      </View>
-                    )}
-                  </Pressable>
-                  <View className="flex-1">
-                    <Text className="text-sm font-black text-foreground">Receipt photo</Text>
-                    {formatAttachmentStatus(attachment) ? (
-                      <Text className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted">{formatAttachmentStatus(attachment)}</Text>
-                    ) : null}
-                  </View>
-                  <Pressable
-                    accessibilityLabel="Remove receipt photo"
-                    accessibilityRole="button"
-                    className="size-10 items-center justify-center rounded-full bg-danger"
-                    onPress={() => {
-                      setDeleteAttachmentError(null);
-                      setDeleteAttachmentTarget(attachment);
-                    }}
-                  >
-                    <Ionicons color={primaryForegroundColor} name="trash-outline" size={18} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
 
         {formError ? <FormError message={formError} /> : null}
 
@@ -486,8 +344,7 @@ export default function TransactionFormScreen() {
         description="Remove this receipt photo from the transaction?"
         errorMessage={deleteAttachmentError}
         onCancel={() => {
-          setDeleteAttachmentError(null);
-          setDeleteAttachmentTarget(null);
+          setState({ deleteAttachmentError: null, deleteAttachmentTarget: null });
         }}
         onConfirm={confirmDeleteAttachment}
         title="Remove receipt?"

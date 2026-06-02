@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -10,6 +9,7 @@ import { useAuth } from '@/src/auth';
 import { deleteLocalCategory, listLocalCategories } from '@/src/categories';
 import type { Category, CategoryType } from '@/src/categories';
 import { ConfirmationDialog, EmptyState, ErrorState, LoadingState, Screen, SyncBadge } from '@/src/components/ui';
+import { useObjectState } from '@/src/lib/use-object-state';
 import { useSyncSummary } from '@/src/sync';
 
 type CategoryListFilter = 'all' | CategoryType;
@@ -37,12 +37,15 @@ export default function CategoriesScreen() {
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
   const { status: syncStatus } = useSyncSummary();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [filter, setFilter] = useState<CategoryListFilter>('all');
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useObjectState({
+    categories: [] as Category[],
+    deleteError: null as string | null,
+    deleteTarget: null as Category | null,
+    errorMessage: null as string | null,
+    filter: 'all' as CategoryListFilter,
+    loading: true,
+  });
+  const { categories, deleteError, deleteTarget, errorMessage, filter, loading } = state;
 
   const visibleCategories = filter === 'all'
     ? categories
@@ -53,16 +56,15 @@ export default function CategoriesScreen() {
       return;
     }
 
-    setLoading(true);
-    setErrorMessage(null);
+    setState({ errorMessage: null, loading: true });
 
     try {
-      setCategories(await listLocalCategories(user.id));
+      setState({ categories: await listLocalCategories(user.id) });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load categories.');
+      setState({ errorMessage: error instanceof Error ? error.message : 'Unable to load categories.' });
     }
 
-    setLoading(false);
+    setState({ loading: false });
   }
 
   useFocusEffect(() => {
@@ -74,20 +76,19 @@ export default function CategoriesScreen() {
       return;
     }
 
-    setDeleteError(null);
+    setState({ deleteError: null });
 
     try {
       await deleteLocalCategory(user.id, deleteTarget.id);
-      setDeleteTarget(null);
+      setState({ deleteTarget: null });
       await loadCategories();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : 'Unable to delete category.');
+      setState({ deleteError: error instanceof Error ? error.message : 'Unable to delete category.' });
     }
   }
 
   function closeDeleteDialog() {
-    setDeleteTarget(null);
-    setDeleteError(null);
+    setState({ deleteError: null, deleteTarget: null });
   }
 
   return (
@@ -118,7 +119,7 @@ export default function CategoriesScreen() {
                 ? 'rounded-full border border-primary bg-primary px-4 py-2'
                 : 'rounded-full border border-border bg-card px-4 py-2'
             }
-            onPress={() => setFilter(item.value)}
+            onPress={() => setState({ filter: item.value })}
           >
             <Text
               className={
@@ -166,7 +167,7 @@ export default function CategoriesScreen() {
                   >
                     <Text className="text-center text-sm font-black text-primary">Edit</Text>
                   </Pressable>
-                  <Pressable className="flex-1 rounded-2xl bg-danger px-4 py-3" onPress={() => setDeleteTarget(category)}>
+                  <Pressable className="flex-1 rounded-2xl bg-danger px-4 py-3" onPress={() => setState({ deleteTarget: category })}>
                     <Text className="text-center text-sm font-black text-primary-foreground">Delete</Text>
                   </Pressable>
                 </View>

@@ -12,6 +12,7 @@ import {
 } from '@/src/categories';
 import type { CategoryFormInput } from '@/src/categories';
 import { FieldError, FormError, LoadingState, Screen } from '@/src/components/ui';
+import { useObjectState } from '@/src/lib/use-object-state';
 
 const EMPTY_FORM: CategoryFormInput = {
   color: CATEGORY_COLORS[0],
@@ -25,19 +26,22 @@ type FieldErrors = Partial<Record<keyof CategoryFormInput, string>>;
 export default function CategoryFormScreen() {
   const { id, type } = useLocalSearchParams<{ id?: string; type?: string }>();
   const { user } = useAuth();
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [form, setForm] = useState<CategoryFormInput>(() => ({
     ...EMPTY_FORM,
     type: type === 'income' ? 'income' : 'expense',
   }));
-  const [formError, setFormError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(Boolean(id));
-  const [submitting, setSubmitting] = useState(false);
+  const [state, setState] = useObjectState({
+    fieldErrors: {} as FieldErrors,
+    formError: null as string | null,
+    loading: Boolean(id),
+    submitting: false,
+  });
+  const { fieldErrors, formError, loading, submitting } = state;
 
   useEffect(() => {
     async function loadCategory() {
       if (!id || !user) {
-        setLoading(false);
+        setState({ loading: false });
         return;
       }
 
@@ -45,9 +49,9 @@ export default function CategoryFormScreen() {
         const category = await getLocalCategoryById(user.id, id);
 
         if (!category) {
-          setFormError('Category not found.');
+          setState({ formError: 'Category not found.' });
         } else if (category.is_default === 1) {
-          setFormError('Default categories are read-only.');
+          setState({ formError: 'Default categories are read-only.' });
         } else {
           setForm({
             color: category.color ?? CATEGORY_COLORS[0],
@@ -57,28 +61,27 @@ export default function CategoryFormScreen() {
           });
         }
       } catch (error) {
-        setFormError(error instanceof Error ? error.message : 'Unable to load category.');
+        setState({ formError: error instanceof Error ? error.message : 'Unable to load category.' });
       }
 
-      setLoading(false);
+      setState({ loading: false });
     }
 
     loadCategory();
-  }, [id, user]);
+  }, [id, setState, user]);
 
   async function submitCategory() {
     if (!user) {
       return;
     }
 
-    setFieldErrors({});
-    setFormError(null);
+    setState({ fieldErrors: {}, formError: null });
 
     const parsed = categoryFormSchema.safeParse(form);
 
     if (!parsed.success) {
-      setFieldErrors(
-        parsed.error.issues.reduce<FieldErrors>((errors, issue) => {
+      setState({
+        fieldErrors: parsed.error.issues.reduce<FieldErrors>((errors, issue) => {
           const field = issue.path[0] as keyof CategoryFormInput | undefined;
 
           if (field) {
@@ -86,12 +89,12 @@ export default function CategoryFormScreen() {
           }
 
           return errors;
-        }, {})
-      );
+        }, {}),
+      });
       return;
     }
 
-    setSubmitting(true);
+    setState({ submitting: true });
 
     try {
       if (id) {
@@ -102,10 +105,10 @@ export default function CategoryFormScreen() {
 
       router.back();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Unable to save category.');
+      setState({ formError: error instanceof Error ? error.message : 'Unable to save category.' });
     }
 
-    setSubmitting(false);
+    setState({ submitting: false });
   }
 
   if (loading) {

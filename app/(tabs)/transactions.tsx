@@ -1,6 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -11,6 +10,7 @@ import { listLocalCategories } from '@/src/categories';
 import type { Category } from '@/src/categories';
 import { AmountText, ConfirmationDialog, EmptyState, ErrorState, LoadingState, MonthPickerField, Screen, SyncBadge } from '@/src/components/ui';
 import { formatReadableDate, toMonthKey } from '@/src/lib/date';
+import { useObjectState } from '@/src/lib/use-object-state';
 import { useSyncSummary } from '@/src/sync';
 import { deleteLocalTransaction, listLocalTransactions } from '@/src/transactions';
 import type { TransactionTypeFilter, TransactionWithCategory } from '@/src/transactions';
@@ -39,17 +39,32 @@ export default function TransactionsScreen() {
   const primaryForegroundColor = Colors[colorScheme].background;
   const { user } = useAuth();
   const { status: syncStatus } = useSyncSummary();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryFilterId, setCategoryFilterId] = useState<string>('');
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<TransactionWithCategory | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(() => toMonthKey(new Date()));
-  const [query, setQuery] = useState('');
-  const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
-  const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>('all');
+  const [state, setState] = useObjectState({
+    categories: [] as Category[],
+    categoryFilterId: '',
+    deleteError: null as string | null,
+    deleteTarget: null as TransactionWithCategory | null,
+    errorMessage: null as string | null,
+    filterVisible: false,
+    loading: true,
+    month: toMonthKey(new Date()),
+    query: '',
+    transactions: [] as TransactionWithCategory[],
+    typeFilter: 'all' as TransactionTypeFilter,
+  });
+  const {
+    categories,
+    categoryFilterId,
+    deleteError,
+    deleteTarget,
+    errorMessage,
+    filterVisible,
+    loading,
+    month,
+    query,
+    transactions,
+    typeFilter,
+  } = state;
 
   const filterCategories = typeFilter === 'all'
     ? categories
@@ -62,8 +77,7 @@ export default function TransactionsScreen() {
       return;
     }
 
-    setLoading(true);
-    setErrorMessage(null);
+    setState({ errorMessage: null, loading: true });
 
     try {
       const [categoryRows, transactionRows] = await Promise.all([
@@ -76,13 +90,12 @@ export default function TransactionsScreen() {
         }),
       ]);
 
-      setCategories(categoryRows);
-      setTransactions(transactionRows);
+      setState({ categories: categoryRows, transactions: transactionRows });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load transactions.');
+      setState({ errorMessage: error instanceof Error ? error.message : 'Unable to load transactions.' });
     }
 
-    setLoading(false);
+    setState({ loading: false });
   }
 
   useFocusEffect(() => {
@@ -94,25 +107,23 @@ export default function TransactionsScreen() {
       return;
     }
 
-    setDeleteError(null);
+    setState({ deleteError: null });
 
     try {
       await deleteLocalTransaction(user.id, deleteTarget.id);
-      setDeleteTarget(null);
+      setState({ deleteTarget: null });
       await loadScreenData();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : 'Unable to delete transaction.');
+      setState({ deleteError: error instanceof Error ? error.message : 'Unable to delete transaction.' });
     }
   }
 
   function closeDeleteDialog() {
-    setDeleteError(null);
-    setDeleteTarget(null);
+    setState({ deleteError: null, deleteTarget: null });
   }
 
   function clearFilters() {
-    setCategoryFilterId('');
-    setTypeFilter('all');
+    setState({ categoryFilterId: '', typeFilter: 'all' });
   }
 
   return (
@@ -133,16 +144,16 @@ export default function TransactionsScreen() {
         <View className="mt-7 flex-row items-center gap-2">
           <TextInput
             className="h-12 flex-1 rounded-2xl border border-border bg-card px-4 text-base font-bold text-foreground"
-            onChangeText={setQuery}
+            onChangeText={(nextQuery) => setState({ query: nextQuery })}
             placeholder="Search note or category"
             placeholderTextColorClassName="accent-muted"
             returnKeyType="search"
             value={query}
           />
-          <MonthPickerField compact value={month} onChange={setMonth} />
+          <MonthPickerField compact value={month} onChange={(nextMonth) => setState({ month: nextMonth })} />
           <Pressable
             className="size-12 items-center justify-center rounded-2xl border border-border bg-card"
-            onPress={() => setFilterVisible(true)}
+            onPress={() => setState({ filterVisible: true })}
           >
             <Ionicons color={iconColor} name={activeFilterCount > 0 ? 'filter' : 'filter-outline'} size={20} />
           </Pressable>
@@ -192,7 +203,7 @@ export default function TransactionsScreen() {
                 >
                   <Text className="text-center text-sm font-black text-primary">Edit</Text>
                 </Pressable>
-                <Pressable className="flex-1 rounded-2xl bg-danger px-4 py-3" onPress={() => setDeleteTarget(transaction)}>
+                <Pressable className="flex-1 rounded-2xl bg-danger px-4 py-3" onPress={() => setState({ deleteTarget: transaction })}>
                   <Text className="text-center text-sm font-black text-primary-foreground">Delete</Text>
                 </Pressable>
               </View>
@@ -205,9 +216,9 @@ export default function TransactionsScreen() {
         categories={filterCategories}
         categoryFilterId={categoryFilterId}
         clearFilters={clearFilters}
-        onClose={() => setFilterVisible(false)}
-        setCategoryFilterId={setCategoryFilterId}
-        setTypeFilter={setTypeFilter}
+        onClose={() => setState({ filterVisible: false })}
+        setCategoryFilterId={(categoryFilterId) => setState({ categoryFilterId })}
+        setTypeFilter={(typeFilter) => setState({ typeFilter })}
         typeFilter={typeFilter}
         visible={filterVisible}
       />
